@@ -1049,7 +1049,8 @@ class MusicBot(discord.Client):
         Usage: Add a predefined playlist to the queue.
         """
         safe_path = slugify(path)
-        playlist = load_file(os.path.join("playlists", safe_path))
+        print(safe_path)
+        playlist = load_file(os.path.join("playlists", safe_path+".txt"))
         song_urls = self.parse_playlist(playlist)
         return await self._cmd_queue_song_list(player, channel, song_urls)
 
