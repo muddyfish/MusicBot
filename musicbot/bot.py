@@ -9,6 +9,7 @@ import discord
 import asyncio
 import traceback
 import glob
+import string
 
 from discord import utils
 from discord.object import Object
@@ -27,7 +28,7 @@ from musicbot.playlist import Playlist
 from musicbot.player import MusicPlayer
 from musicbot.config import Config, ConfigDefaults
 from musicbot.permissions import Permissions, PermissionsDefaults
-from musicbot.utils import load_file, write_file, sane_round_int, paginate
+from musicbot.utils import load_file, write_file, sane_round_int, paginate, slugify
 
 from . import exceptions
 from . import downloader
@@ -815,51 +816,6 @@ class MusicBot(discord.Client):
             usr = user_mentions[0]
             return Response("%s's id is `%s`" % (usr.name, usr.id), reply=True, delete_after=35)
 
-    @owner_only
-    async def cmd_play_local(self, player, channel, path):
-        files = [path]
-        if "*" in path:
-            files = glob.glob(path)
-            f_id = defaultdict(lambda:"")
-            str_files = []
-            for path in files:
-                file = os.path.split(path)[-1]
-                if file[0] in "0123456789":
-                    part = file
-                    while part[0] in "0123456789":
-                        f_id[path] += part[0]
-                        part = part[1:]
-                    f_id[path] = int(f_id[path])
-                else:
-                    str_files.append(path)
-            files = sorted(f_id, key=f_id.get) + str_files
-
-        replies = []
-        for path in files:
-            if not os.path.exists(path):
-                return Response("'{}' does not exist".format(path), reply=True, delete_after=35)
-
-            entry, position = await player.playlist.add_entry(path, channel=channel, author=None, local=True)
-
-            song_text = "Enqueued **%s** to be played. Position in queue: %s"
-            btext = entry.title
-
-            if position == 1 and player.is_stopped:
-                position = 'Up next!'
-                song_text %= (btext, position)
-
-            else:
-                try:
-                    time_until = await player.playlist.estimate_time_until(position, player)
-                    song_text += ' - estimated time until playing: %s'
-                except:
-                    traceback.print_exc()
-                    time_until = ''
-
-                song_text %= (btext, position, time_until)
-            replies.append(song_text)
-        return Response("\n".join(replies), delete_after=30)
-
 
     @owner_only
     async def cmd_joinserver(self, message, server_link=None):
@@ -1076,6 +1032,79 @@ class MusicBot(discord.Client):
             reply_text %= (btext, position, time_until)
 
         return Response(reply_text, delete_after=30)
+
+    @owner_only
+    async def cmd_play_local(self, player, channel, path):
+        """
+        Usage: Play a file or files given a local path.
+        Expands wildcards.
+        """
+        files = [path]
+        if "*" in path:
+            files = glob.glob(path)
+        return await self._cmd_queue_song_list(player, channel, files)
+
+    async def cmd_queue_playlist(self, player, channel, path):
+        """
+        Usage: Add a predefined playlist to the queue.
+        """
+        safe_path = slugify(path)
+        playlist = load_file(os.path.join("playlists", safe_path))
+        song_urls = self.parse_playlist(playlist)
+        return await self._cmd_queue_song_list(player, channel, song_urls)
+
+    async def cmd_get_playlists(self, path=None):
+        """
+        Usage: Get all predefined playlists.
+        Optional: Specific playlist: lists songs in playlist
+        """
+        if path is None:
+            files = [os.path.split(path)[-1][:-4] for path in glob.glob(os.path.join("playlists", "*.txt"))]
+            return Response(", ".join(files), reply=True)
+        safe_path = slugify(path)
+        playlist = load_file(os.path.join("playlists", safe_path+".txt"))
+        song_urls = [os.path.split(path)[-1] for path in self.parse_playlist(playlist)]
+        return Response("\n".join(song_urls), delete_after=35)
+
+    async def _cmd_queue_song_list(self, player, channel, song_list):
+        f_id = defaultdict(lambda: "")
+        str_files = []
+        for path in song_list:
+            file = os.path.split(path)[-1]
+            if file[0] in "0123456789":
+                part = file
+                while part[0] in "0123456789":
+                    f_id[path] += part[0]
+                    part = part[1:]
+                f_id[path] = int(f_id[path])
+            else:
+                str_files.append(path)
+        song_list = sorted(f_id, key=f_id.get) + str_files
+        replies = []
+        for path in song_list:
+            if not os.path.exists(path):
+                return Response("'{}' does not exist".format(path), reply=True, delete_after=35)
+
+            entry, position = await player.playlist.add_entry(path, channel=channel, author=None, local=True)
+
+            song_text = "Enqueued **%s** to be played. Position in queue: %s"
+            btext = entry.title
+
+            if position == 1 and player.is_stopped:
+                position = 'Up next!'
+                song_text %= (btext, position)
+
+            else:
+                try:
+                    time_until = await player.playlist.estimate_time_until(position, player)
+                    song_text += ' - estimated time until playing: %s'
+                except:
+                    traceback.print_exc()
+                    time_until = ''
+
+                song_text %= (btext, position, time_until)
+            replies.append(song_text)
+        return Response("\n".join(replies), delete_after=30)
 
     async def _cmd_play_playlist_async(self, player, channel, author, permissions, playlist_url, extractor_type):
         """
