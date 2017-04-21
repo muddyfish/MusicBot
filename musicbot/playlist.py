@@ -1,11 +1,12 @@
 import datetime
 import traceback
+import os
 from collections import deque
 from itertools import islice
 from random import shuffle
 
 from .utils import get_header
-from .entry import URLPlaylistEntry
+from .entry import URLPlaylistEntry, LocalPlaylistEntry
 from .exceptions import ExtractionError, WrongEntryTypeError
 from .lib.event_emitter import EventEmitter
 
@@ -31,7 +32,7 @@ class Playlist(EventEmitter):
     def clear(self):
         self.entries.clear()
 
-    async def add_entry(self, song_url, **meta):
+    async def add_entry(self, song_url, local=False, **meta):
         """
             Validates and adds a song_url to be played. This does not start the download of the song.
 
@@ -40,7 +41,15 @@ class Playlist(EventEmitter):
             :param song_url: The song url to add to the playlist.
             :param meta: Any additional metadata to add to the playlist entry.
         """
+        if local:
 
+            entry = LocalPlaylistEntry(
+                self,
+                song_url,
+                title=os.path.split(song_url)[-1]
+            )
+            self._add_entry(entry)
+            return entry, len(self.entries)
         try:
             info = await self.downloader.extract_info(self.loop, song_url, download=False)
         except Exception as e:
