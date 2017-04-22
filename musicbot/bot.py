@@ -1069,7 +1069,7 @@ class MusicBot(discord.Client):
     @owner_only
     async def cmd_add_playlist(self, player, channel, author, playlist):
         name, *songs = playlist.split("\n")
-        name = name[:-1]
+        name = slugify(name[:-1])
         print(name)
         urls = []
         for search_term in songs:
