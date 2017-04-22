@@ -1049,7 +1049,6 @@ class MusicBot(discord.Client):
         Usage: Add a predefined playlist to the queue.
         """
         safe_path = slugify(path)
-        print(safe_path)
         playlist = load_file(os.path.join("playlists", safe_path+".txt"))
         song_urls = self.parse_playlist(playlist)
         return await self._cmd_queue_song_list(player, channel, song_urls)
@@ -1067,6 +1066,50 @@ class MusicBot(discord.Client):
         song_urls = [os.path.split(path)[-1] for path in self.parse_playlist(playlist)]
         return Response("\n".join(song_urls), delete_after=35)
 
+    @owner_only
+    async def cmd_add_playlist(self, player, channel, author, playlist):
+        name, *songs = playlist.split("\n")
+        name = name[:-1]
+        print(name)
+        urls = []
+        for search_term in songs:
+            search_query = 'ytsearch10:{}'.format(search_term)
+
+            search_msg = await self.send_message(channel, "Searching for videos...")
+            await self.send_typing(channel)
+
+            try:
+                info = await self.downloader.extract_info(player.playlist.loop, search_query, download=False,
+                                                          process=True)
+            except Exception as e:
+                await self.safe_edit_message(search_msg, str(e), send_if_fail=True)
+                return
+            else:
+                await self.safe_delete_message(search_msg)
+
+            if not info:
+                await self.safe_send_message(channel, "No videos found for {}".format(search_term))
+
+            for e in info['entries']:
+                result_message = await self.safe_send_message(channel, "Result %s/%s: %s" % (
+                    info['entries'].index(e) + 1, len(info['entries']), e['webpage_url']))
+
+                confirm_message = await self.safe_send_message(channel, "Is this ok? Type `y`, `n`")
+                response_message = await self.wait_for_message(30, author=author, channel=channel, check=lambda m: m.content.lower()[0] in 'yn')
+                if response_message.content.lower().startswith('y'):
+                    await self.safe_delete_message(result_message)
+                    await self.safe_delete_message(confirm_message)
+                    await self.safe_delete_message(response_message)
+                    urls.append(e['webpage_url'])
+                    break
+                else:
+                    await self.safe_delete_message(result_message)
+                    await self.safe_delete_message(confirm_message)
+                    await self.safe_delete_message(response_message)
+            else:
+                await self.safe_send_message(channel, "No videos accepted for {}".format(search_term))
+        write_file(os.path.join("playlists", name+".txt"), urls)
+
     async def _cmd_queue_song_list(self, player, channel, song_list):
         f_id = defaultdict(lambda: "")
         str_files = []
@@ -1083,10 +1126,7 @@ class MusicBot(discord.Client):
         song_list = sorted(f_id, key=f_id.get) + str_files
         replies = []
         for path in song_list:
-            if not os.path.exists(path):
-                return Response("'{}' does not exist".format(path), reply=True, delete_after=35)
-
-            entry, position = await player.playlist.add_entry(path, channel=channel, author=None, local=True)
+            entry, position = await player.playlist.add_entry(path, channel=channel, author=None, local=os.path.exists(path))
 
             song_text = "Enqueued **%s** to be played. Position in queue: %s"
             btext = entry.title
