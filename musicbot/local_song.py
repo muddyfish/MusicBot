@@ -20,8 +20,6 @@ def sort_songs(song_urls):
     for song_file in song_urls:
         try:
             song = taglib.File(song_file.encode("utf-8"))
-            name = get_field(song, "TITLE", os.path.split(song_file)[-1][:-4])
-            length = song.length
             sort_field = (get_field(song, "ALBUM"),
                           number_key(get_field(song, "DISCNUMBER")),
                           number_key(get_field(song, "TRACKNUMBER")))
@@ -29,3 +27,8 @@ def sort_songs(song_urls):
         except OSError:
             songs[song_file] = ("",)
     return sorted(songs, key=songs.get)
+
+def get_info(song_url):
+    song = taglib.File(song_file.encode("utf-8"))
+    name = get_field(song, "TITLE", os.path.split(song_file)[-1][:-4])
+    length = song.length

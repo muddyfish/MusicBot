@@ -28,7 +28,7 @@ from musicbot.player import MusicPlayer
 from musicbot.config import Config, ConfigDefaults
 from musicbot.permissions import Permissions, PermissionsDefaults
 from musicbot.utils import load_file, write_file, sane_round_int, paginate, slugify
-from musicbot.sort_local import sort_songs
+from musicbot.local_song import sort_songs
 
 from . import exceptions
 from . import downloader

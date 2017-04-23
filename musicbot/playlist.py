@@ -1,6 +1,5 @@
 import datetime
 import traceback
-import os
 from collections import deque
 from itertools import islice
 from random import shuffle
@@ -10,6 +9,7 @@ from .entry import URLPlaylistEntry, LocalPlaylistEntry
 from .exceptions import ExtractionError, WrongEntryTypeError
 from .lib.event_emitter import EventEmitter
 
+from musicbot.local_song import get_info
 
 class Playlist(EventEmitter):
     """
@@ -46,7 +46,7 @@ class Playlist(EventEmitter):
             entry = LocalPlaylistEntry(
                 self,
                 song_url,
-                title=os.path.split(song_url)[-1]
+                *get_info(song_url)
             )
             self._add_entry(entry)
             return entry, len(self.entries)
