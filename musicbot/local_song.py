@@ -29,6 +29,7 @@ def sort_songs(song_urls):
     return sorted(songs, key=songs.get)
 
 def get_info(song_url):
-    song = taglib.File(song_file.encode("utf-8"))
-    name = get_field(song, "TITLE", os.path.split(song_file)[-1][:-4])
+    song = taglib.File(song_url.encode("utf-8"))
+    name = get_field(song, "TITLE", os.path.split(song_url)[-1][:-4])
     length = song.length
+    return name, length
