@@ -9,7 +9,6 @@ import discord
 import asyncio
 import traceback
 import glob
-import string
 
 from discord import utils
 from discord.object import Object
@@ -29,6 +28,7 @@ from musicbot.player import MusicPlayer
 from musicbot.config import Config, ConfigDefaults
 from musicbot.permissions import Permissions, PermissionsDefaults
 from musicbot.utils import load_file, write_file, sane_round_int, paginate, slugify
+from musicbot.sort_local import sort_songs
 
 from . import exceptions
 from . import downloader
@@ -2129,7 +2129,7 @@ class MusicBot(discord.Client):
             local = not song_url.startswith("http")
             if local:
                 if "*" in song_url:
-                    rtn.extend(glob.glob(song_url))
+                    rtn.extend(sort_songs(glob.glob(song_url)))
                 else:
                     rtn.append(song_url)
             else:
