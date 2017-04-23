@@ -1112,18 +1112,6 @@ class MusicBot(discord.Client):
 
     async def _cmd_queue_song_list(self, player, channel, song_list):
         f_id = defaultdict(lambda: "")
-        str_files = []
-        for path in song_list:
-            file = os.path.split(path)[-1]
-            if file[0] in "0123456789":
-                part = file
-                while part[0] in "0123456789":
-                    f_id[path] += part[0]
-                    part = part[1:]
-                f_id[path] = int(f_id[path])
-            else:
-                str_files.append(path)
-        song_list = sorted(f_id, key=f_id.get) + str_files
         replies = []
         for path in song_list:
             entry, position = await player.playlist.add_entry(path, channel=channel, author=None, local=os.path.exists(path))
