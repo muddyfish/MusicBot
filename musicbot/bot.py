@@ -1033,7 +1033,6 @@ class MusicBot(discord.Client):
 
         return Response(reply_text, delete_after=30)
 
-    @owner_only
     async def cmd_play_local(self, player, channel, path):
         """
         Usage: Play a file or files given a local path.

@@ -2,8 +2,10 @@ import taglib
 import os
 import re
 
+
 def get_field(song, field, default=""):
     return song.tags.get(field, [""])[0].strip() or default
+
 
 def number_key(name):
     parts = re.findall("[^0-9]+|[0-9]+", name)
@@ -14,6 +16,7 @@ def number_key(name):
         except ValueError:
             L.append(part)
     return L
+
 
 def sort_songs(song_urls):
     songs = {}
@@ -27,6 +30,7 @@ def sort_songs(song_urls):
         except OSError:
             songs[song_file] = ("",)
     return sorted(songs, key=songs.get)
+
 
 def get_info(song_url):
     song = taglib.File(song_url.encode("utf-8"))
