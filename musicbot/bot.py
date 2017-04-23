@@ -1040,7 +1040,7 @@ class MusicBot(discord.Client):
         """
         files = [path]
         if "*" in path:
-            files = glob.glob(path, recurse=True)
+            files = glob.glob(path, recursive=True)
         return await self._cmd_queue_song_list(player, channel, files)
 
     async def cmd_queue_playlist(self, player, channel, path):
