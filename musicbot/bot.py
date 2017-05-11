@@ -2158,6 +2158,10 @@ class MusicBot(discord.Client):
                 traceback.print_exc()
                 if self.config.debug_mode:
                     await self.safe_send_message(report_channel, '```\n%s\n```' % traceback.format_exc())
+                    if user:
+                        await self.safe_send_message(report_channel, "Failed to remove the fresh role from {}".format(user.name))
+                    else:
+                        await self.safe_send_message(report_channel, "Failed to remove the fresh role from {}".format(user_id))
 
     async def on_voice_state_update(self, before, after):
         if not all([before, after]):
