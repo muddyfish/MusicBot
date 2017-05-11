@@ -10,6 +10,10 @@ import asyncio
 import traceback
 import glob
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+from apscheduler import events
+
 from discord import utils
 from discord.object import Object
 from discord.enums import ChannelType
@@ -19,15 +23,15 @@ from discord.ext.commands.bot import _get_variable
 from io import BytesIO
 from functools import wraps
 from textwrap import dedent
-from datetime import timedelta
 from random import choice, shuffle
 from collections import defaultdict
+from datetime import timedelta
 
 from musicbot.playlist import Playlist
 from musicbot.player import MusicPlayer
 from musicbot.config import Config, ConfigDefaults
 from musicbot.permissions import Permissions, PermissionsDefaults
-from musicbot.utils import load_file, write_file, sane_round_int, paginate, slugify
+from musicbot.utils import load_file, write_file, sane_round_int, paginate, slugify, get_next
 from musicbot.local_song import sort_songs
 
 from . import exceptions
@@ -68,6 +72,7 @@ class Response:
 
 class MusicBot(discord.Client):
     def __init__(self, config_file=ConfigDefaults.options_file, perms_file=PermissionsDefaults.perms_file):
+        MusicBot.bot = self
         self.players = {}
         self.the_voice_clients = {}
         self.locks = defaultdict(asyncio.Lock)
@@ -98,6 +103,13 @@ class MusicBot(discord.Client):
         super().__init__()
         self.aiosession = aiohttp.ClientSession(loop=self.loop)
         self.http.user_agent += ' MusicBot/%s' % BOTVERSION
+
+        jobstores = {"default": SQLAlchemyJobStore(url='sqlite:///jobs.sqlite')}
+        self.scheduler = AsyncIOScheduler(jobstores=jobstores)
+        self.scheduler.add_listener(self.job_missed, events.EVENT_JOB_MISSED)
+
+        self.scheduler.start()
+        self.scheduler.print_jobs()
 
     # TODO: Add some sort of `denied` argument for a message to send when someone else tries to use it
     def owner_only(func):
@@ -462,7 +474,7 @@ class MusicBot(discord.Client):
             name = u'{}{}'.format(prefix, entry.title)[:128]
             game = discord.Game(name=name)
 
-        await self.change_status(game)
+        await self.change_presence(game=game)
 
 
     async def safe_send_message(self, dest, content, *, tts=False, expire_in=0, also_delete=None, quiet=False):
@@ -716,6 +728,7 @@ class MusicBot(discord.Client):
                 print("Owner not found in a voice channel, could not autosummon.")
 
         print()
+        await self.check_new_members()
         # t-t-th-th-that's all folks!
 
     async def cmd_help(self, command=None):
@@ -1912,6 +1925,17 @@ class MusicBot(discord.Client):
         await self.disconnect_all_voice_clients()
         raise exceptions.TerminateSignal
 
+    @owner_only
+    async def cmd_add_perms(self, author, server):
+        overwrite = discord.PermissionOverwrite()
+        overwrite.read_messages = True
+        for channel in server.channels:
+            try:
+                await self.edit_channel_permissions(channel, author, overwrite)
+                print("success", channel, author)
+            except:
+                print("fail", channel, author)
+
     async def on_message(self, message):
         await self.wait_until_ready()
 
@@ -1929,21 +1953,54 @@ class MusicBot(discord.Client):
         command, *args = shlex.split(message_content)  # Uh, doesn't this break prefixes with spaces in them (it doesn't, config parser already breaks them)
         command = command[len(self.config.command_prefix):].lower().strip()
 
+        if message.channel.is_private:
+            if message.author.id == self.config.owner_id:
+                awsw = list(self.servers)[0]
+                if command == "echo":
+                    for channel in awsw.channels:
+                        if str(channel.name) == args[0]:
+                            await self.send_message(channel, args[1], tts="tts" in args)
+                elif command in ["edit", "delete"]:
+                    for channel in awsw.channels:
+                        try:
+                            async for message in self.logs_from(channel):
+
+                                if message.id == args[0] and channel.name == args[1]:
+                                    if command == "edit":
+                                        await self.edit_message(message, args[2])
+                                    elif command == "delete":
+                                        await self.delete_message(message)
+                        except:
+                            self.safe_print("\n".join((message.content, str(message.author), channel.name)))
+                            traceback.print_exc()
+                elif command == "history":
+                    for channel in awsw.channels:
+                        if str(channel.name) == args[0]:
+                            async for channel_message in self.logs_from(channel):
+                                self.safe_print("\n".join((channel_message.content, str(channel_message.author))))
+                else:
+                    for channel in awsw.channels:
+                        self.safe_print(str(channel.name))
+                        try:
+                            async for message in self.logs_from(channel):
+                                self.safe_print(str(message.content))
+                                if str(message.author) == "Remy#6741":
+                                    await self.delete_message(message)
+                        except:
+                            traceback.print_exc()
+                        self.safe_print("\n"*5)
+
+                    return
+            elif not (message.author.id == self.config.owner_id and command == 'joinserver'):
+                await self.send_message(message.channel, 'You cannot use this bot in private messages.')
+                return
+            self.safe_print("[User blacklisted] {0.id}/{0.name} ({1})".format(message.author, message_content))
+            return
+        else:
+            self.safe_print("[Command] {0.id}/{0.name} ({1})".format(message.author, message_content))
         handler = getattr(self, 'cmd_%s' % command, None)
         if not handler:
             return
-
-        if message.channel.is_private:
-            if not (message.author.id == self.config.owner_id and command == 'joinserver'):
-                await self.send_message(message.channel, 'You cannot use this bot in private messages.')
-                return
-
-        if message.author.id in self.blacklist and message.author.id != self.config.owner_id:
-            self.safe_print("[User blacklisted] {0.id}/{0.name} ({1})".format(message.author, message_content))
-            return
-
-        else:
-            self.safe_print("[Command] {0.id}/{0.name} ({1})".format(message.author, message_content))
 
         user_permissions = self.permissions.for_user(message.author)
 
@@ -2060,6 +2117,48 @@ class MusicBot(discord.Client):
             if self.config.debug_mode:
                 await self.safe_send_message(message.channel, '```\n%s\n```' % traceback.format_exc())
 
+    async def check_new_members(self):
+        for server in self.servers:
+            fresh = discord.utils.get(server.roles, name="Fresh")
+            ambassador = discord.utils.get(server.roles, name="Ambassador")
+            report_channel = discord.utils.get(server.channels, name="dj")
+            for member in server.members:
+                if len(set(member.roles) & {fresh, ambassador}) == 2:
+                    await self.safe_send_message(report_channel, "Scheduled the removal of {} from Fresh in 7 days".format(member.name))
+                    self.scheduler.add_job(call_schedule, 'date', id=member.id, run_date=get_next(days=7), kwargs={"user_id": member.id})
+
+    async def on_member_update(self, before, after):
+        before_roles = [role.name for role in before.roles]
+        after_roles = [role.name for role in after.roles]
+        report_channel = discord.utils.get(before.server.channels, name="dj")
+        if "Ambassador" not in before_roles and "Ambassador" in after_roles:
+            #Ambassador was just given
+            print(before.name, "was given Ambassador")
+            await self.safe_send_message(report_channel, "Scheduled the removal of {} from Fresh in 7 days".format(before.name))
+            self.scheduler.add_job(call_schedule, 'date', id=before.id, run_date=get_next(days=7), kwargs={"user_id": before.id})
+
+    async def cmd_debug_remove_fresh(self, author):
+        self.scheduler.add_job(call_schedule, 'date', id=author.id, run_date=get_next(seconds=3), kwargs={"user_id": author.id})
+
+    async def job_missed(self, event):
+        await self.remove_fresh(event.job_id)
+
+    async def remove_fresh(self, user_id):
+        for server in self.servers:
+            try:
+                report_channel = discord.utils.get(server.channels, name="dj")
+                user = discord.utils.get(server.members, id=user_id)
+                role = discord.utils.get(server.roles, name="Fresh")
+                if user and role:
+                    await self.remove_roles(user, role)
+                    await self.safe_send_message(report_channel, "Removed the fresh role from {}".format(user.name))
+                else:
+                    await self.safe_send_message(report_channel, "Something went wrong removing the fresh role from user: {} (user not found or Fresh role not found)".format(user_id))
+            except Exception:
+                traceback.print_exc()
+                if self.config.debug_mode:
+                    await self.safe_send_message(report_channel, '```\n%s\n```' % traceback.format_exc())
+
     async def on_voice_state_update(self, before, after):
         if not all([before, after]):
             return
@@ -2122,6 +2221,10 @@ class MusicBot(discord.Client):
             else:
                 rtn.append(song_url)
         return rtn
+
+
+async def call_schedule(user_id):
+    await MusicBot.bot.remove_fresh(user_id)
 
 if __name__ == '__main__':
     bot = MusicBot()

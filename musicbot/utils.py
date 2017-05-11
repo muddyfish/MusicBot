@@ -6,6 +6,14 @@ import unicodedata
 from hashlib import md5
 from .constants import DISCORD_MSG_CHAR_LIMIT
 
+from datetime import datetime, timedelta
+
+
+def get_next(**kwargs):
+    today = datetime.now()
+    delta = timedelta(**kwargs)
+    return today + delta
+
 
 def load_file(filename, skip_commented_lines=True, comment_char='#'):
     try:

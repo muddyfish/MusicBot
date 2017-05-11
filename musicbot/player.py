@@ -198,22 +198,7 @@ class MusicPlayer(EventEmitter):
         return False
 
     async def _delete_file(self, filename):
-        for x in range(30):
-            try:
-                os.unlink(filename)
-                break
-
-            except PermissionError as e:
-                if e.winerror == 32:  # File is in use
-                    await asyncio.sleep(0.25)
-
-            except Exception as e:
-                traceback.print_exc()
-                print("Error trying to delete " + filename)
-                break
-        else:
-            print("[Config:SaveVideos] Could not delete file {}, giving up and moving on".format(
-                os.path.relpath(filename)))
+        pass
 
     def play(self, _continue=False):
         self.loop.create_task(self._play(_continue=_continue))
