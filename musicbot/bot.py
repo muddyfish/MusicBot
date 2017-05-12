@@ -104,7 +104,8 @@ class MusicBot(discord.Client):
         self.aiosession = aiohttp.ClientSession(loop=self.loop)
         self.http.user_agent += ' MusicBot/%s' % BOTVERSION
 
-        jobstores = {"default": SQLAlchemyJobStore(url='sqlite:///jobs.sqlite')}
+        self.jobstore = SQLAlchemyJobStore(url='sqlite:///jobs.sqlite')
+        jobstores = {"default": self.jobstore}
         self.scheduler = AsyncIOScheduler(jobstores=jobstores)
         self.scheduler.add_listener(self.job_missed, events.EVENT_JOB_MISSED)
 
@@ -2124,8 +2125,7 @@ class MusicBot(discord.Client):
             report_channel = discord.utils.get(server.channels, name="dj")
             for member in server.members:
                 if len(set(member.roles) & {fresh, ambassador}) == 2:
-                    await self.safe_send_message(report_channel, "Scheduled the removal of {} from Fresh in 7 days".format(member.name))
-                    self.scheduler.add_job(call_schedule, 'date', id=member.id, run_date=get_next(days=7), kwargs={"user_id": member.id})
+                    await self.schedule_removal(member, report_channel, days=7)
 
     async def on_member_update(self, before, after):
         before_roles = [role.name for role in before.roles]
@@ -2133,12 +2133,17 @@ class MusicBot(discord.Client):
         report_channel = discord.utils.get(before.server.channels, name="dj")
         if "Ambassador" not in before_roles and "Ambassador" in after_roles:
             #Ambassador was just given
-            print(before.name, "was given Ambassador")
-            await self.safe_send_message(report_channel, "Scheduled the removal of {} from Fresh in 7 days".format(before.name))
-            self.scheduler.add_job(call_schedule, 'date', id=before.id, run_date=get_next(days=7), kwargs={"user_id": before.id})
+            await self.schedule_removal(before, report_channel, days=7)
 
-    async def cmd_debug_remove_fresh(self, author):
-        self.scheduler.add_job(call_schedule, 'date', id=author.id, run_date=get_next(seconds=3), kwargs={"user_id": author.id})
+    async def cmd_debug_remove_fresh(self, author, channel):
+        await self.schedule_removal(author, channel, message="Scheduled the removal of {} from Fresh in 2 seconds", seconds=2)
+
+    async def schedule_removal(self, member, report_channel, message="Scheduled the removal of {} from Fresh in 7 days", **kwargs):
+        if member.id in [job.id for job in self.jobstore.get_all_jobs()]:
+            await self.safe_send_message(report_channel, "{} already scheduled for removal".format(member.name))
+            return
+        await self.safe_send_message(report_channel, message.format(member.name))
+        self.scheduler.add_job(call_schedule, 'date', id=member.id, run_date=get_next(**kwargs), kwargs={"user_id": member.id})
 
     async def job_missed(self, event):
         await self.remove_fresh(event.job_id)
