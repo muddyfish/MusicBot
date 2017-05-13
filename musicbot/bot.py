@@ -2134,7 +2134,7 @@ class MusicBot(discord.Client):
             report_channel = discord.utils.get(server.channels, name="dj")
             for member in server.members:
                 if len(set(member.roles) & {fresh, ambassador}) == 2:
-                    await self.schedule_removal(member, report_channel, days=7)
+                    await self.schedule_removal(member, report_channel, complain=False, days=7)
 
     async def on_member_update(self, before, after):
         before_roles = [role.name for role in before.roles]
@@ -2147,9 +2147,10 @@ class MusicBot(discord.Client):
     async def cmd_debug_remove_fresh(self, author, channel):
         await self.schedule_removal(author, channel, message="Scheduled the removal of {} from Fresh in 2 seconds", seconds=2)
 
-    async def schedule_removal(self, member, report_channel, message="Scheduled the removal of {} from Fresh in 7 days", **kwargs):
+    async def schedule_removal(self, member, report_channel, message="Scheduled the removal of {} from Fresh in 7 days", complain=True, **kwargs):
         if member.id in [job.id for job in self.jobstore.get_all_jobs()]:
-            await self.safe_send_message(report_channel, "{} already scheduled for removal".format(member.name))
+            if complain:
+                await self.safe_send_message(report_channel, "{} already scheduled for removal".format(member.name))
             return
         await self.safe_send_message(report_channel, message.format(member.name))
         self.scheduler.add_job(call_schedule, 'date', id=member.id, run_date=get_next(**kwargs), kwargs={"user_id": member.id})
@@ -2172,10 +2173,10 @@ class MusicBot(discord.Client):
                 traceback.print_exc()
                 if self.config.debug_mode:
                     await self.safe_send_message(report_channel, '```\n%s\n```' % traceback.format_exc())
-                    if user:
-                        await self.safe_send_message(report_channel, "Failed to remove the fresh role from {}".format(user.name))
-                    else:
-                        await self.safe_send_message(report_channel, "Failed to remove the fresh role from {}".format(user_id))
+                if user:
+                    await self.safe_send_message(report_channel, "Failed to remove the fresh role from {}".format(user.name))
+                else:
+                    await self.safe_send_message(report_channel, "Failed to remove the fresh role from {}".format(user_id))
 
     async def on_voice_state_update(self, before, after):
         if not all([before, after]):
