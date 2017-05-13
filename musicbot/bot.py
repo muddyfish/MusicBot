@@ -1057,6 +1057,15 @@ class MusicBot(discord.Client):
             files = glob.glob(path, recursive=True)
         return await self._cmd_queue_song_list(player, channel, files)
 
+    async def cmd_awsw(self, player, channel, song_id):
+        if not song_id.isdigit():
+            return Response("Must be the soundtrack number (44 - Spring).")
+        files = glob.glob("./music/awsw/{}*.".format(song_id))
+        if not files:
+            return Response("No file found with that id")
+        return await self._cmd_queue_song_list(player, channel, files)
+
+
     async def cmd_queue_playlist(self, player, channel, path):
         """
         Usage: Add a predefined playlist to the queue.
