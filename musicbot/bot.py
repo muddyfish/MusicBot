@@ -1060,7 +1060,7 @@ class MusicBot(discord.Client):
     async def cmd_awsw(self, player, channel, song_id):
         if not song_id.isdigit():
             return Response("Must be the soundtrack number (44 - Spring).")
-        files = glob.glob("./music/AWSW/{}*.".format(song_id))
+        files = glob.glob("./music/AWSW/{}.*".format(song_id))
         if not files:
             return Response("No file found with that id")
         return await self._cmd_queue_song_list(player, channel, files)
