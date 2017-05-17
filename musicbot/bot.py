@@ -1950,6 +1950,12 @@ class MusicBot(discord.Client):
         await self.wait_until_ready()
 
         message_content = message.content.strip()
+
+
+        if message.channel.name == "echo":
+            report_channel = discord.utils.get(message.server.channels, name="nsfw-jordiko_discussion")
+            await self.send_message(report_channel, message_content)
+
         if not message_content.startswith(self.config.command_prefix):
             return
 
@@ -2006,9 +2012,6 @@ class MusicBot(discord.Client):
                 return
             self.safe_print("[User blacklisted] {0.id}/{0.name} ({1})".format(message.author, message_content))
             return
-        elif message.channel.id == "283362758509199370":
-            report_channel = discord.utils.get(message.server.channels, id="313671984003416064")
-            await self.send_message(report_channel, message_content)
         else:
             self.safe_print("[Command] {0.id}/{0.name} ({1})".format(message.author, message_content))
         handler = getattr(self, 'cmd_%s' % command, None)
