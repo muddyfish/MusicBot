@@ -2006,6 +2006,9 @@ class MusicBot(discord.Client):
                 return
             self.safe_print("[User blacklisted] {0.id}/{0.name} ({1})".format(message.author, message_content))
             return
+        elif message.channel.id == "283362758509199370":
+            report_channel = discord.utils.get(message.server.channels, id="313671984003416064")
+            await self.send_message(report_channel, message_content)
         else:
             self.safe_print("[Command] {0.id}/{0.name} ({1})".format(message.author, message_content))
         handler = getattr(self, 'cmd_%s' % command, None)
