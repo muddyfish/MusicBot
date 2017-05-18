@@ -1675,7 +1675,13 @@ class MusicBot(discord.Client):
         return Response(message, delete_after=30)
 
     async def cmd_remove_queue(self, player, remove_id):
+        try:
+            int(remove_id)
+        except:
+            return Response("enter a number.  NUMBER.  That means digits.  `15`.  Etc.", reply=True, delete_after=8)
+        entry = player.playlist.entries[int(remove_id)-1]
         del player.playlist.entries[int(remove_id)-1]
+        return Response("Removed `{}` from the queue.".format(entry.title))
 
     async def cmd_clean(self, message, channel, server, author, search_range=50):
         """
