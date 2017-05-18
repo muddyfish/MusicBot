@@ -1674,6 +1674,9 @@ class MusicBot(discord.Client):
         message = '\n'.join(lines)
         return Response(message, delete_after=30)
 
+    async def cmd_remove_queue(self, player, remove_id):
+        del player.playlist.entries[int(remove_id)-1]
+
     async def cmd_clean(self, message, channel, server, author, search_range=50):
         """
         Usage:
@@ -1990,10 +1993,12 @@ class MusicBot(discord.Client):
                             self.safe_print("\n".join((message.content, str(message.author), channel.name)))
                             traceback.print_exc()
                 elif command == "history":
+                    if len(args) != 2:
+                        args.append(10)
                     for channel in awsw.channels:
                         if str(channel.name) == args[0]:
-                            async for channel_message in self.logs_from(channel):
-                                self.safe_print("\n".join((channel_message.content, str(channel_message.author))))
+                            async for channel_message in self.logs_from(channel, limit=int(args[1])):
+                                await self.send_message(message.channel, ("{}: {}".format(channel_message.author, channel_message.content)))
                 else:
                     for channel in awsw.channels:
                         self.safe_print(str(channel.name))
