@@ -2181,8 +2181,11 @@ class MusicBot(discord.Client):
                 user = discord.utils.get(server.members, id=user_id)
                 role = discord.utils.get(server.roles, name="Fresh")
                 if user and role:
-                    await self.remove_roles(user, role)
-                    await self.safe_send_message(report_channel, "Removed the fresh role from {}".format(user.mention))
+                    if role in user.roles:
+                        await self.remove_roles(user, role)
+                        await self.safe_send_message(report_channel, "Removed the fresh role from {}".format(user.mention))
+                    else:
+                        await self.safe_send_message(report_channel, "{} has already had Fresh removed from them".format(user.mention))
                 else:
                     await self.safe_send_message(report_channel, "Something went wrong removing the fresh role from user: {} (user not found or Fresh role not found)".format(user_id))
             except Exception:
