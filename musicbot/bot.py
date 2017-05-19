@@ -1960,7 +1960,6 @@ class MusicBot(discord.Client):
 
         message_content = message.content.strip()
 
-
         if message.channel.name == "echo":
             report_channel = discord.utils.get(message.server.channels, name="nsfw-jordiko_discussion")
             await self.send_message(report_channel, message_content)
@@ -2167,9 +2166,9 @@ class MusicBot(discord.Client):
     async def schedule_removal(self, member, report_channel, message="Scheduled the removal of {} from Fresh in 7 days", complain=True, **kwargs):
         if member.id in [job.id for job in self.jobstore.get_all_jobs()]:
             if complain:
-                await self.safe_send_message(report_channel, "{} already scheduled for removal".format(member.name))
+                await self.safe_send_message(report_channel, "{} already scheduled for removal".format(member.mention))
             return
-        await self.safe_send_message(report_channel, message.format(member.name))
+        await self.safe_send_message(report_channel, message.format(member.mention))
         self.scheduler.add_job(call_schedule, 'date', id=member.id, run_date=get_next(**kwargs), kwargs={"user_id": member.id})
 
     async def job_missed(self, event):
@@ -2183,7 +2182,7 @@ class MusicBot(discord.Client):
                 role = discord.utils.get(server.roles, name="Fresh")
                 if user and role:
                     await self.remove_roles(user, role)
-                    await self.safe_send_message(report_channel, "Removed the fresh role from {}".format(user.name))
+                    await self.safe_send_message(report_channel, "Removed the fresh role from {}".format(user.mention))
                 else:
                     await self.safe_send_message(report_channel, "Something went wrong removing the fresh role from user: {} (user not found or Fresh role not found)".format(user_id))
             except Exception:
@@ -2191,7 +2190,7 @@ class MusicBot(discord.Client):
                 if self.config.debug_mode:
                     await self.safe_send_message(report_channel, '```\n%s\n```' % traceback.format_exc())
                 if user:
-                    await self.safe_send_message(report_channel, "Failed to remove the fresh role from {}".format(user.name))
+                    await self.safe_send_message(report_channel, "Failed to remove the fresh role from {}".format(user.mention))
                 else:
                     await self.safe_send_message(report_channel, "Failed to remove the fresh role from {}".format(user_id))
 
