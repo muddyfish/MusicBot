@@ -874,7 +874,7 @@ class MusicBot(discord.Client):
 
         await self.send_typing(channel)
 
-        invisible = leftover_args[-1] == "invis"
+        invisible = leftover_args and leftover_args[-1] == "invis"
         if invisible:
             leftover_args = leftover_args[:-1]
         if leftover_args:
