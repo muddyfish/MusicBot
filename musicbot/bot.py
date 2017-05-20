@@ -1985,7 +1985,7 @@ class MusicBot(discord.Client):
         command = command[len(self.config.command_prefix):].lower().strip()
 
         if message.channel.is_private:
-            if message.author.id in [self.config.owner_id, 186955497671360512, 104445625562570752, 152303040970489856, 279857235444760586]:
+            if message.author.id in [self.config.owner_id, 186955497671360512, 104445625562570752, 152303040970489856, 279857235444760586, 140419299092201472]:
                 awsw = discord.utils.get(self.servers, name="AwSW Fan Discord")
                 if command == "echo_local":
                     await self.send_message(message.channel, args[0])
@@ -2017,6 +2017,15 @@ class MusicBot(discord.Client):
                 elif command == "stealth_play":
                     command = "play"
                     message.channel = discord.utils.get(awsw.channels, name="dj")
+                elif command == "emote":
+                    emote = discord.utils.get(self.get_all_emojis(), name=args[0])
+                    if not emote:
+                        await self.send_message(message.channel,"Could not find emote")
+                        return
+                    channel = discord.utils.get(self.get_all_channels(), name=args[1])
+                    async for channel_message in self.logs_from(channel):
+                        if channel_message.id == args[2]:
+                            await self.add_reaction(channel_message, emote)
                 else:
                     for channel in awsw.channels:
                         self.safe_print(str(channel.name))
