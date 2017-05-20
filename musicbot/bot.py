@@ -874,6 +874,9 @@ class MusicBot(discord.Client):
 
         await self.send_typing(channel)
 
+        invisible = leftover_args[-1] == "invis"
+        if invisible:
+            leftover_args = leftover_args[:-1]
         if leftover_args:
             song_url = ' '.join([song_url, *leftover_args])
 
@@ -1016,7 +1019,7 @@ class MusicBot(discord.Client):
                 )
 
             try:
-                entry, position = await player.playlist.add_entry(song_url, channel=channel, author=author)
+                entry, position = await player.playlist.add_entry(song_url, channel=channel, author=author, invisible=invisible)
 
             except exceptions.WrongEntryTypeError as e:
                 if e.use_url == song_url:
@@ -1045,7 +1048,8 @@ class MusicBot(discord.Client):
 
             reply_text %= (btext, position, time_until)
 
-        return Response(reply_text, delete_after=30)
+        if not invisible:
+            return Response(reply_text, delete_after=30)
 
     async def cmd_play_local(self, player, channel, path):
         """
@@ -1650,10 +1654,13 @@ class MusicBot(discord.Client):
                 lines.append("Now Playing: **%s** %s\n" % (player.current_entry.title, prog_str))
 
         for i, item in enumerate(player.playlist, 1):
+            if item.meta.get("invisible", False):
+                continue
+            song_total = str(timedelta(seconds=item.duration)).lstrip('0').lstrip(':')
             if item.meta.get('channel', False) and item.meta.get('author', False):
-                nextline = '`{}.` **{}** added by **{}**'.format(i, item.title, item.meta['author'].name).strip()
+                nextline = '`{}.` **{}** added by **{}** [{}]'.format(i, item.title, item.meta['author'].name, song_total).strip()
             else:
-                nextline = '`{}.` **{}**'.format(i, item.title).strip()
+                nextline = '`{}.` **{}** [{}]'.format(i, item.title, song_total).strip()
 
             currentlinesum = sum(len(x) + 1 for x in lines)  # +1 is for newline char
 
@@ -1979,8 +1986,10 @@ class MusicBot(discord.Client):
 
         if message.channel.is_private:
             if message.author.id in [self.config.owner_id, 186955497671360512, 104445625562570752, 152303040970489856, 279857235444760586]:
-                awsw = list(self.servers)[0]
-                if command == "echo":
+                awsw = discord.utils.get(self.servers, name="AwSW Fan Discord")
+                if command == "echo_local":
+                    await self.send_message(message.channel, args[0])
+                elif command == "echo":
                     for channel in awsw.channels:
                         if str(channel.name) == args[0]:
                             await self.send_message(channel, args[1], tts="tts" in args)
@@ -2004,6 +2013,10 @@ class MusicBot(discord.Client):
                         if str(channel.name) == args[0]:
                             async for channel_message in self.logs_from(channel, limit=int(args[1])):
                                 await self.send_message(message.channel, ("{}: {}".format(channel_message.author, channel_message.content)))
+                                self.safe_print(channel_message.content)
+                elif command == "stealth_play":
+                    command = "play"
+                    message.channel = discord.utils.get(awsw.channels, name="dj")
                 else:
                     for channel in awsw.channels:
                         self.safe_print(str(channel.name))
@@ -2020,8 +2033,9 @@ class MusicBot(discord.Client):
             elif not (message.author.id == self.config.owner_id and command == 'joinserver'):
                 await self.send_message(message.channel, 'You cannot use this bot in private messages.')
                 return
-            self.safe_print("[User blacklisted] {0.id}/{0.name} ({1})".format(message.author, message_content))
-            return
+            else:
+                self.safe_print("[User blacklisted] {0.id}/{0.name} ({1})".format(message.author, message_content))
+                return
         else:
             self.safe_print("[Command] {0.id}/{0.name} ({1})".format(message.author, message_content))
         handler = getattr(self, 'cmd_%s' % command, None)
