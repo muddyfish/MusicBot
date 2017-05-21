@@ -1967,10 +1967,6 @@ class MusicBot(discord.Client):
 
         message_content = message.content.strip()
 
-        if message.channel.name == "echo":
-            report_channel = discord.utils.get(message.server.channels, name="nsfw-jordiko_discussion")
-            await self.send_message(report_channel, message_content)
-
         if not message_content.startswith(self.config.command_prefix):
             return
 
