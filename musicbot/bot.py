@@ -1991,11 +1991,12 @@ class MusicBot(discord.Client):
                 elif command in ["edit", "delete"]:
                     channel = discord.utils.get(awsw.channels, name=args[0])
                     async for message in self.logs_from(channel):
-                        if message.id == args[1]:
-                            if command == "edit":
-                                await self.edit_message(message, args[2])
-                            elif command == "delete":
-                                await self.delete_message(message)
+                        try:
+                            if message.id == args[1]:
+                                if command == "edit":
+                                    await self.edit_message(message, args[2])
+                                elif command == "delete":
+                                    await self.delete_message(message)
                         except:
                             self.safe_print("\n".join((message.content, str(message.author), channel.name)))
                             traceback.print_exc()
