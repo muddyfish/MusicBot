@@ -1986,19 +1986,16 @@ class MusicBot(discord.Client):
                 if command == "echo_local":
                     await self.send_message(message.channel, args[0])
                 elif command == "echo":
-                    for channel in awsw.channels:
-                        if str(channel.name) == args[0]:
-                            await self.send_message(channel, args[1], tts="tts" in args)
+                    channel = discord.utils.get(awsw.channels, name=args[0])
+                    await self.send_message(channel, args[1], tts="tts" in args)
                 elif command in ["edit", "delete"]:
-                    for channel in awsw.channels:
-                        try:
-                            async for message in self.logs_from(channel):
-
-                                if message.id == args[0] and channel.name == args[1]:
-                                    if command == "edit":
-                                        await self.edit_message(message, args[2])
-                                    elif command == "delete":
-                                        await self.delete_message(message)
+                    channel = discord.utils.get(awsw.channels, name=args[0])
+                    async for message in self.logs_from(channel):
+                        if message.id == args[1]:
+                            if command == "edit":
+                                await self.edit_message(message, args[2])
+                            elif command == "delete":
+                                await self.delete_message(message)
                         except:
                             self.safe_print("\n".join((message.content, str(message.author), channel.name)))
                             traceback.print_exc()
