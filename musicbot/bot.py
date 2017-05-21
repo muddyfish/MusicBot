@@ -2198,27 +2198,37 @@ class MusicBot(discord.Client):
         await self.remove_fresh(event.job_id)
 
     async def remove_fresh(self, user_id):
-        for server in self.servers:
-            try:
-                report_channel = discord.utils.get(server.channels, name="dj")
-                user = discord.utils.get(server.members, id=user_id)
-                role = discord.utils.get(server.roles, name="Fresh")
-                if user and role:
-                    if role in user.roles:
-                        await self.remove_roles(user, role)
-                        await self.safe_send_message(report_channel, "Removed the fresh role from {}".format(user.mention))
-                    else:
-                        await self.safe_send_message(report_channel, "{} has already had Fresh removed from them".format(user.mention))
+        server = discord.utils.get(self.servers, name="AwSW Fan Discord")
+        try:
+            report_channel = discord.utils.get(server.channels, name="dj")
+            user = discord.utils.get(server.members, id=user_id)
+            role = discord.utils.get(server.roles, name="Fresh")
+            if user and role:
+                if role in user.roles:
+                    await self.remove_roles(user, role)
+                    await self.safe_send_message(report_channel, "Removed the fresh role from {}".format(user.mention))
                 else:
-                    await self.safe_send_message(report_channel, "Something went wrong removing the fresh role from user: {} (user not found or Fresh role not found)".format(user_id))
-            except Exception:
-                traceback.print_exc()
-                if self.config.debug_mode:
-                    await self.safe_send_message(report_channel, '```\n%s\n```' % traceback.format_exc())
-                if user:
-                    await self.safe_send_message(report_channel, "Failed to remove the fresh role from {}".format(user.mention))
-                else:
-                    await self.safe_send_message(report_channel, "Failed to remove the fresh role from {}".format(user_id))
+                    await self.safe_send_message(report_channel, "{} has already had Fresh removed from them".format(user.mention))
+            else:
+                await self.safe_send_message(report_channel, "Something went wrong removing the fresh role from user: {} (user not found or Fresh role not found)".format(user_id))
+        except Exception:
+            traceback.print_exc()
+            if self.config.debug_mode:
+                await self.safe_send_message(report_channel, '```\n%s\n```' % traceback.format_exc())
+            if user:
+                await self.safe_send_message(report_channel, "Failed to remove the fresh role from {}".format(user.mention))
+            else:
+                await self.safe_send_message(report_channel, "Failed to remove the fresh role from {}".format(user_id))
+
+    async def cmd_fresh_status(self, channel, server):
+        jobs = self.jobstore.get_all_jobs()
+        for job in jobs:
+            user_id, next_run_time = job.id, job.next_run_time
+            user = discord.utils.get(server.members, id=user_id)
+            await self.safe_send_message(channel, "{}: {}".format(
+                user.name,
+                next_run_time.strftime("%Y-%m-%d %H:%M:%S %z")))
+
 
     async def on_voice_state_update(self, before, after):
         if not all([before, after]):
