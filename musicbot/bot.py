@@ -2220,7 +2220,7 @@ class MusicBot(discord.Client):
             user_id, next_run_time = job.id, job.next_run_time
             user = discord.utils.get(server.members, id=user_id)
             await self.safe_send_message(channel, "{}: {}".format(
-                user.name,
+                user.mention,
                 next_run_time.strftime("%Y-%m-%d %H:%M:%S %z")))
 
     async def cmd_unschedule(self, channel, message):
