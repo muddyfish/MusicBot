@@ -1972,7 +1972,7 @@ class MusicBot(discord.Client):
         if message.channel.is_private:
             if message.author.id in [self.config.owner_id, 186955497671360512, 104445625562570752, 152303040970489856, 279857235444760586, 140419299092201472]:
                 awsw = discord.utils.get(self.servers, name="AwSW Fan Discord")
-                elif command == "echo":
+                if command == "echo":
                     channel = discord.utils.get(awsw.channels, name=args[0])
                     await self.send_message(channel, args[1], tts="tts" in args)
                 elif command in ["edit", "delete"]:
