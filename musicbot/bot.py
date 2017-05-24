@@ -2193,13 +2193,15 @@ class MusicBot(discord.Client):
         await self.safe_send_message(channel, "\n".join(rtn))
 
     async def cmd_unschedule(self, channel, message):
+        rtn = []
         jobs = {job.id: job for job in self.jobstore.get_all_jobs()}
         for user in message.mentions:
             if user.id in jobs:
                 jobs[user.id].remove()
-                await self.safe_send_message(channel, "Unscheduled {}".format(user.mention))
+                rtn.append("Unscheduled {}".format(user.mention))
             else:
-                await self.safe_send_message(channel, "{} isn't scheduled for removal".format(user.mention))
+                rtn.append("{} isn't scheduled for removal".format(user.mention))
+        await self.safe_send_message(channel, "\n".join(rtn))
 
     async def on_voice_state_update(self, before, after):
         if not all([before, after]):
