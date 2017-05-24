@@ -2183,12 +2183,14 @@ class MusicBot(discord.Client):
 
     async def cmd_fresh_status(self, channel, server):
         jobs = self.jobstore.get_all_jobs()
+        rtn = []
         for job in jobs:
             user_id, next_run_time = job.id, job.next_run_time
             user = discord.utils.get(server.members, id=user_id)
-            await self.safe_send_message(channel, "{}: {}".format(
+            rtn.append("{}: {}".format(
                 user.mention,
                 next_run_time.strftime("%Y-%m-%d %H:%M:%S %z")))
+        await self.safe_send_message(channel, "\n".join(rtn))
 
     async def cmd_unschedule(self, channel, message):
         jobs = {job.id: job for job in self.jobstore.get_all_jobs()}
