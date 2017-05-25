@@ -2321,7 +2321,10 @@ class MusicBot(discord.Client):
         return rtn
 
 
-async def call_schedule(func, arg):
+async def call_schedule(func, arg=None):
+    if arg is None:
+        await MusicBot.bot.remove_fresh(func)
+        return
     await getattr(MusicBot.bot, func)(arg)
 
 if __name__ == '__main__':
