@@ -2228,7 +2228,7 @@ class MusicBot(discord.Client):
         self.scheduler.add_job(call_schedule,
                                'date',
                                id=self.get_id_args(self.remove_rainbow, member.id),
-                               run_date=get_next(seconds=rainbow_time),
+                               run_date=get_next(minutes=rainbow_time),
                                kwargs={"func": "remove_rainbow",
                                        "arg": member.id})
 
