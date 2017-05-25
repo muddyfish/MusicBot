@@ -2230,7 +2230,8 @@ class MusicBot(discord.Client):
                                id=self.get_id_args(self.remove_rainbow, member.id),
                                run_date=get_next(minutes=rainbow_time),
                                kwargs={"func": "remove_rainbow",
-                                       "arg": member.id})
+                                       "arg": member.id},
+                               replace_existing=True)
 
     async def remove_rainbow(self, member_id):
         server = discord.utils.get(self.servers, name="AwSW Fan Discord")
