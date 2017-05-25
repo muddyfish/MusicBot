@@ -9,6 +9,7 @@ import discord
 import asyncio
 import traceback
 import glob
+import colorsys
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
@@ -71,6 +72,9 @@ class Response:
 
 
 class MusicBot(discord.Client):
+    cycle_length = 100
+    sleep_time = 0.1
+
     def __init__(self, config_file=ConfigDefaults.options_file, perms_file=PermissionsDefaults.perms_file):
         MusicBot.bot = self
         self.players = {}
@@ -103,14 +107,6 @@ class MusicBot(discord.Client):
         super().__init__()
         self.aiosession = aiohttp.ClientSession(loop=self.loop)
         self.http.user_agent += ' MusicBot/%s' % BOTVERSION
-
-        self.jobstore = SQLAlchemyJobStore(url='sqlite:///jobs.sqlite')
-        jobstores = {"default": self.jobstore}
-        self.scheduler = AsyncIOScheduler(jobstores=jobstores)
-        self.scheduler.add_listener(self.job_missed, events.EVENT_JOB_MISSED)
-
-        self.scheduler.start()
-        self.scheduler.print_jobs()
 
     # TODO: Add some sort of `denied` argument for a message to send when someone else tries to use it
     def owner_only(func):
@@ -729,7 +725,15 @@ class MusicBot(discord.Client):
                 print("Owner not found in a voice channel, could not autosummon.")
 
         print()
+        self.jobstore = SQLAlchemyJobStore(url='sqlite:///jobs.sqlite')
+        jobstores = {"default": self.jobstore}
+        self.scheduler = AsyncIOScheduler(jobstores=jobstores)
+        self.scheduler.add_listener(self.job_missed, events.EVENT_JOB_MISSED)
+
+        self.scheduler.start()
+        self.scheduler.print_jobs()
         await self.check_new_members()
+        asyncio.ensure_future(self.cycle_colours())
         # t-t-th-th-that's all folks!
 
     async def cmd_help(self, command=None):
@@ -2145,7 +2149,7 @@ class MusicBot(discord.Client):
             await self.schedule_removal(before, report_channel, days=7)
 
     async def cmd_debug_remove_fresh(self, author, channel):
-        await self.schedule_removal(author, channel, message="Scheduled the removal of {} from Fresh in 2 seconds", seconds=2)
+        await self.schedule_removal(author, channel, message="Scheduled the removal of {} from Fresh in 5 seconds", seconds=5)
 
     async def schedule_removal(self, member, report_channel, message="Scheduled the removal of {} from Fresh in 7 days", complain=True, **kwargs):
         if member.id in [job.id for job in self.jobstore.get_all_jobs()]:
@@ -2153,10 +2157,19 @@ class MusicBot(discord.Client):
                 await self.safe_send_message(report_channel, "{} already scheduled for removal".format(member.mention))
             return
         await self.safe_send_message(report_channel, message.format(member.mention))
-        self.scheduler.add_job(call_schedule, 'date', id=member.id, run_date=get_next(**kwargs), kwargs={"user_id": member.id})
+        self.scheduler.add_job(call_schedule,
+                               'date',
+                               id=self.get_id_args(self.remove_fresh, member.id),
+                               run_date=get_next(**kwargs),
+                               kwargs={"func": "remove_fresh",
+                                       "arg": member.id})
 
-    async def job_missed(self, event):
-        await self.remove_fresh(event.job_id)
+    def job_missed(self, event):
+        asyncio.ensure_future(call_schedule(*event.job_id.split(" ")))
+
+    @staticmethod
+    def get_id_args(func, arg):
+        return "{} {}".format(func.__name__, arg)
 
     async def remove_fresh(self, user_id):
         server = discord.utils.get(self.servers, name="AwSW Fan Discord")
@@ -2202,6 +2215,46 @@ class MusicBot(discord.Client):
             else:
                 rtn.append("{} isn't scheduled for removal".format(user.mention))
         await self.safe_send_message(channel, "\n".join(rtn))
+
+    async def cmd_rainbow(self, server, user_mentions, _, rainbow_time):
+        if not rainbow_time.isdigit():
+            return Response("Command: !rainbow @user rainbow_time_in_minutes. Didn't get time")
+        rainbow_time = int(rainbow_time)
+        if not user_mentions:
+            return Response("Command: !rainbow @user rainbow_time_in_minutes. Didn't get user")
+        member = user_mentions[0]
+        role = discord.utils.get(server.roles, name="Rainbow")
+        await self.add_roles(member, role)
+        self.scheduler.add_job(call_schedule,
+                               'date',
+                               id=self.get_id_args(self.remove_rainbow, member.id),
+                               run_date=get_next(seconds=rainbow_time),
+                               kwargs={"func": "remove_rainbow",
+                                       "arg": member.id})
+
+    async def remove_rainbow(self, member_id):
+        server = discord.utils.get(self.servers, name="AwSW Fan Discord")
+        member = discord.utils.get(server.members, id=member_id)
+        role = discord.utils.get(server.roles, name="Rainbow")
+        await self.remove_roles(member, role)
+
+    async def cycle_colours(self):
+        i = 0
+        awsw = discord.utils.get(self.servers, name="AwSW Fan Discord")
+        role = discord.utils.get(awsw.roles, name="Rainbow")
+        while 1:
+            i += 1
+            i %= MusicBot.cycle_length
+            await self.edit_role(awsw, role, colour=self.get_colour(i))
+            await asyncio.sleep(MusicBot.sleep_time)
+
+    @staticmethod
+    def get_colour(colour_id):
+        r, g, b = colorsys.hsv_to_rgb(colour_id / float(MusicBot.cycle_length), 1., 1.)
+        r = int(r*255)
+        g = int(g*255)
+        b = int(b*255)
+        return discord.Colour(r*(256**2)+g*256+b)
 
     async def on_voice_state_update(self, before, after):
         if not all([before, after]):
@@ -2267,8 +2320,8 @@ class MusicBot(discord.Client):
         return rtn
 
 
-async def call_schedule(user_id):
-    await MusicBot.bot.remove_fresh(user_id)
+async def call_schedule(func, arg):
+    await getattr(MusicBot.bot, func)(arg)
 
 if __name__ == '__main__':
     bot = MusicBot()
