@@ -2003,6 +2003,8 @@ class MusicBot(discord.Client):
                     async for channel_message in self.logs_from(channel):
                         if channel_message.id == args[2]:
                             await self.add_reaction(channel_message, emote)
+                            await self.wait_for_reaction(emote, message=channel_message)
+                            await self.remove_reaction(channel_message, emote, channel.server.me)
                     return
             elif not (message.author.id == self.config.owner_id and command == 'joinserver'):
                 await self.send_message(message.channel, 'You cannot use this bot in private messages.')
