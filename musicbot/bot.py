@@ -1999,11 +1999,12 @@ class MusicBot(discord.Client):
                     if not emote:
                         await self.send_message(message.channel,"Could not find emote")
                         return
+                    await self.send_message(message.channel, str(emote.server))
                     channel = discord.utils.get(self.get_all_channels(), name=args[1])
                     async for channel_message in self.logs_from(channel):
                         if channel_message.id == args[2]:
                             await self.add_reaction(channel_message, emote)
-                            await self.wait_for_reaction(emote, message=channel_message)
+                            await asyncio.sleep(5)
                             await self.remove_reaction(channel_message, emote, channel.server.me)
                     return
             elif not (message.author.id == self.config.owner_id and command == 'joinserver'):
@@ -2154,7 +2155,7 @@ class MusicBot(discord.Client):
         await self.schedule_removal(author, channel, message="Scheduled the removal of {} from Fresh in 5 seconds", seconds=5)
 
     async def schedule_removal(self, member, report_channel, message="Scheduled the removal of {} from Fresh in 7 days", complain=True, **kwargs):
-        if member.id in [job.id for job in self.jobstore.get_all_jobs()]:
+        if member.id in [job.id.split(" ")[-1] for job in self.jobstore.get_all_jobs()]:
             if complain:
                 await self.safe_send_message(report_channel, "{} already scheduled for removal".format(member.mention))
             return
@@ -2200,11 +2201,17 @@ class MusicBot(discord.Client):
         jobs = self.jobstore.get_all_jobs()
         rtn = []
         for job in jobs:
-            user_id, next_run_time = job.id, job.next_run_time
+            user_id, next_run_time = job.id.split()[-1], job.next_run_time
             user = discord.utils.get(server.members, id=user_id)
-            rtn.append("{}: {}".format(
-                user.mention,
-                next_run_time.strftime("%Y-%m-%d %H:%M:%S %z")))
+            if user:
+                rtn.append("{}: {}".format(
+                    user.mention,
+                    next_run_time.strftime("%Y-%m-%d %H:%M:%S %z")))
+            else:
+                rtn.append("{}: {} (Left server)".format(
+                    user_id,
+                    next_run_time.strftime("%Y-%m-%d %H:%M:%S %z")
+                ))
         await self.safe_send_message(channel, "\n".join(rtn))
 
     async def cmd_unschedule(self, channel, message):
