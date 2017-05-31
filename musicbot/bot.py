@@ -2219,7 +2219,7 @@ class MusicBot(discord.Client):
         jobs = {job.id.split()[-1]: job for job in self.jobstore.get_all_jobs()}
         for user in message.mentions:
             if user.id in jobs:
-                jobs["remove_fresh "+user.id].remove()
+                jobs[user.id].remove()
                 rtn.append("Unscheduled {}".format(user.mention))
             else:
                 rtn.append("{} isn't scheduled for removal".format(user.mention))
