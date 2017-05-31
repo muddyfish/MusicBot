@@ -2152,9 +2152,9 @@ class MusicBot(discord.Client):
             #Ambassador was just given
             await self.schedule_removal(before, report_channel, days=7)
 
-    async def cmd_debug_remove_fresh(self, message, channel):
+    async def cmd_remove_fresh(self, message, channel):
         for user in message.mentions:
-            await self.schedule_removal(user, channel, message="Scheduled the removal of {} from Fresh in 5 seconds", seconds=5)
+            await self.remove_fresh(user.id)
 
     async def schedule_removal(self, member, report_channel, message="Scheduled the removal of {} from Fresh in 7 days", complain=True, **kwargs):
         if member.id in [job.id.split(" ")[-1] for job in self.jobstore.get_all_jobs()]:
