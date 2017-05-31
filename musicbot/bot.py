@@ -388,8 +388,10 @@ class MusicBot(discord.Client):
         return self.players[server.id]
 
     async def on_player_play(self, player, entry):
-        await self.update_now_playing(entry)
         player.skip_state.reset()
+        if entry.meta.get("invisible", False):
+            return
+        await self.update_now_playing(entry)
 
         channel = entry.meta.get('channel', None)
         author = entry.meta.get('author', None)
@@ -410,7 +412,6 @@ class MusicBot(discord.Client):
             else:
                 newmsg = 'Now playing in %s: **%s**' % (
                     player.voice_client.channel.name, entry.title)
-
             if self.server_specific_data[channel.server]['last_np_msg']:
                 self.server_specific_data[channel.server]['last_np_msg'] = await self.safe_edit_message(last_np_msg, newmsg, send_if_fail=True)
             else:
@@ -876,13 +877,13 @@ class MusicBot(discord.Client):
                 "You have reached your enqueued song limit (%s)" % permissions.max_songs, expire_in=30
             )
 
-        await self.send_typing(channel)
 
         invisible = leftover_args and leftover_args[-1] == "invis"
         if invisible:
             leftover_args = leftover_args[:-1]
         if leftover_args:
             song_url = ' '.join([song_url, *leftover_args])
+            await self.send_typing(channel)
 
         try:
             info = await self.downloader.extract_info(player.playlist.loop, song_url, download=False, process=False)
