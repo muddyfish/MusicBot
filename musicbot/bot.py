@@ -2255,7 +2255,10 @@ class MusicBot(discord.Client):
         while 1:
             i += 1
             i %= MusicBot.cycle_length
-            await self.edit_role(awsw, role, colour=self.get_colour(i))
+            try:
+                await self.edit_role(awsw, role, colour=self.get_colour(i))
+            except discord.errors.HTTPException:
+                pass
             await asyncio.sleep(MusicBot.sleep_time)
 
     @staticmethod
