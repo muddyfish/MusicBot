@@ -1142,6 +1142,16 @@ class MusicBot(discord.Client):
                 await self.safe_send_message(channel, "No videos accepted for {}".format(search_term))
         write_file(os.path.join("playlists", name+".txt"), urls)
 
+    async def cmd_set_autoplaylist(self, path):
+        """
+        Set the autoplaylist to a playlist
+        """
+        safe_path = slugify(path)
+        playlist = load_file(os.path.join("playlists", safe_path+".txt"))
+        self.autoplaylist = self.parse_playlist(playlist)
+        self.config.auto_playlist = True
+        return Response("Changed the autoplaylist to {}".format(safe_path))
+
     async def _cmd_queue_song_list(self, player, channel, song_list):
         f_id = defaultdict(lambda: "")
         replies = []
