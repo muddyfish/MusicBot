@@ -1098,7 +1098,6 @@ class MusicBot(discord.Client):
         song_urls = [os.path.split(path)[-1] for path in self.parse_playlist(playlist)]
         return Response("\n".join(song_urls), delete_after=35)
 
-    @owner_only
     async def cmd_add_playlist(self, player, channel, author, playlist):
         name, *songs = playlist.split("\n")
         name = slugify(name[:-1])
