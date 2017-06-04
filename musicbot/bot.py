@@ -1140,6 +1140,14 @@ class MusicBot(discord.Client):
             else:
                 await self.safe_send_message(channel, "No videos accepted for {}".format(search_term))
         write_file(os.path.join("playlists", name+".txt"), urls)
+        await self.safe_send_message(channel, "Added playlist and saved as {}".format(name))
+
+
+    async def cmd_add_playlist_urls(self, channel, playlist):
+        name, *urls = playlist.split("\n")
+        name = slugify(name[:-1])
+        write_file(os.path.join("playlists", name+".txt"), urls)
+        await self.safe_send_message(channel, "Added playlist and saved as {}".format(name))
 
     async def cmd_set_autoplaylist(self, path):
         """
