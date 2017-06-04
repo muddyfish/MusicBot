@@ -1100,7 +1100,7 @@ class MusicBot(discord.Client):
 
     async def cmd_add_playlist(self, player, channel, author, playlist):
         name, *songs = playlist.split("\n")
-        name = slugify(name[:-1])
+        name = slugify(name)
         print(name)
         urls = []
         for search_term in songs:
@@ -1145,7 +1145,7 @@ class MusicBot(discord.Client):
 
     async def cmd_add_playlist_urls(self, channel, playlist):
         name, *urls = playlist.split("\n")
-        name = slugify(name[:-1])
+        name = slugify(name)
         write_file(os.path.join("playlists", name+".txt"), urls)
         await self.safe_send_message(channel, "Added playlist and saved as {}".format(name))
 
