@@ -2229,7 +2229,7 @@ class MusicBot(discord.Client):
                     next_run_time.strftime("%Y-%m-%d %H:%M:%S %z")))
             else:
                 rtn.append("{}: {} (Left server)".format(
-                    user_id,
+                    (await self.get_user_info(user_id)).mention,
                     next_run_time.strftime("%Y-%m-%d %H:%M:%S %z")
                 ))
         await self.safe_send_message(channel, "\n".join(rtn))
@@ -2263,22 +2263,30 @@ class MusicBot(discord.Client):
                                replace_existing=True)
 
     async def remove_rainbow(self, member_id):
-        server = discord.utils.get(self.servers, name="AwSW Fan Discord")
-        member = discord.utils.get(server.members, id=member_id)
-        role = discord.utils.get(server.roles, name="Rainbow")
-        await self.remove_roles(member, role)
+        for server in self.servers:
+            member = discord.utils.get(server.members, id=member_id)
+            role = discord.utils.get(server.roles, name="Rainbow")
+            if member and role:
+                await self.remove_roles(member, role)
 
     async def cycle_colours(self):
         i = 0
-        awsw = discord.utils.get(self.servers, name="AwSW Fan Discord")
-        role = discord.utils.get(awsw.roles, name="Rainbow")
+        rainbows = []
+        for server in self.servers:
+            role = discord.utils.get(server.roles, name="Rainbow")
+            if role:
+                rainbows.append((server, role))
         while 1:
             i += 1
             i %= MusicBot.cycle_length
-            try:
-                await self.edit_role(awsw, role, colour=self.get_colour(i))
-            except discord.errors.HTTPException:
-                pass
+            for rainbow in rainbows:
+                try:
+                    await self.edit_role(*rainbow, colour=self.get_colour(i))
+                except discord.errors.Forbidden:
+                    rainbows.remove(rainbow)
+                    print("Failed to add rainbow to:", *rainbow)
+                except discord.errors.HTTPException:
+                    pass
             await asyncio.sleep(MusicBot.sleep_time)
 
     @staticmethod
