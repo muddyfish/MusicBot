@@ -17,7 +17,7 @@ from apscheduler import events
 
 from discord import utils
 from discord.object import Object
-from discord.enums import ChannelType
+from discord.enums import ChannelType, Status
 from discord.voice_client import VoiceClient
 from discord.ext.commands.bot import _get_variable
 
@@ -1974,58 +1974,75 @@ class MusicBot(discord.Client):
         await self.disconnect_all_voice_clients()
         raise exceptions.TerminateSignal
 
+    async def alt_cmd_iam(self, author, role_name, server):
+        for role in server.roles:
+            if role.name.lower() == role_name.lower():
+                if role.id not in self.config.giveable_roles:
+                    return Response("{} is not in the whitelisted group of roles".format(
+                                        role.name
+                                    ),
+                                    delete_after=20,
+                                    reply=True)
+                break
+        else:
+            return Response("{} was not found".format(role_name),
+                            delete_after=20,
+                            reply=True)
+        await self.add_roles(author, role)
+        return Response("you are now {}".format(role_name),
+                        delete_after=20,
+                        reply=True)
+
+    async def alt_cmd_iamn(self, author, role_name, server):
+        for role in server.roles:
+            if role.name.lower() == role_name.lower():
+                if role.id not in self.config.giveable_roles:
+                    return Response("{} is not in the whitelisted group of roles".format(
+                                        role.name
+                                    ),
+                                    delete_after=20,
+                                    reply=True)
+                break
+        else:
+            return Response("{} was not found".format(role_name),
+                            delete_after=20,
+                            reply=True)
+        await self.remove_roles(author, role)
+        return Response("you are no longer {}".format(role_name),
+                        delete_after=20,
+                        reply=True)
+
     async def on_message(self, message):
         await self.wait_until_ready()
-
         message_content = message.content.strip()
 
+        uses_alternate = message_content.startswith(self.config.alternate_command_prefix)
+        if uses_alternate:
+            other_bot = message.server.get_member(user_id=self.config.other_bot)
+            if other_bot:
+                if other_bot.status != Status.offline:
+                    return
         if not message_content.startswith(self.config.command_prefix):
-            return
+            if not uses_alternate:
+                return
 
         if message.author == self.user:
             self.safe_print("Ignoring command from myself (%s)" % message.content)
             return
 
-        if self.config.bound_channels and message.channel.id not in self.config.bound_channels and not message.channel.is_private:
-            return  # if I want to log this I just move it under the prefix check
+        if uses_alternate:
+            if self.config.alternate_bound_channels and message.channel.id not in self.config.alternate_bound_channels and not message.channel.is_private:
+                return
+        else:
+            if self.config.bound_channels and message.channel.id not in self.config.bound_channels and not message.channel.is_private:
+                return  # if I want to log this I just move it under the prefix check
 
         command, *args = shlex.split(message_content)  # Uh, doesn't this break prefixes with spaces in them (it doesn't, config parser already breaks them)
         command = command[len(self.config.command_prefix):].lower().strip()
 
         if message.channel.is_private:
             if message.author.id in [self.config.owner_id, 186955497671360512, 104445625562570752, 152303040970489856, 279857235444760586, 140419299092201472]:
-                awsw = discord.utils.get(self.servers, name="AwSW Fan Discord")
-                if command == "echo":
-                    channel = discord.utils.get(awsw.channels, name=args[0])
-                    await self.send_message(channel, args[1], tts="tts" in args)
-                elif command in ["edit", "delete"]:
-                    channel = discord.utils.get(awsw.channels, name=args[0])
-                    async for message in self.logs_from(channel):
-                        try:
-                            if message.id == args[1]:
-                                if command == "edit":
-                                    await self.edit_message(message, args[2])
-                                elif command == "delete":
-                                    await self.delete_message(message)
-                        except:
-                            self.safe_print("\n".join((message.content, str(message.author), channel.name)))
-                            traceback.print_exc()
-                elif command == "stealth_play":
-                    command = "play"
-                    message.channel = discord.utils.get(awsw.channels, name="dj")
-                elif command == "emote":
-                    emote = discord.utils.get(self.get_all_emojis(), name=args[0])
-                    if not emote:
-                        await self.send_message(message.channel,"Could not find emote")
-                        return
-                    await self.send_message(message.channel, str(emote.server))
-                    channel = discord.utils.get(self.get_all_channels(), name=args[1])
-                    async for channel_message in self.logs_from(channel):
-                        if channel_message.id == args[2]:
-                            await self.add_reaction(channel_message, emote)
-                            await asyncio.sleep(5)
-                            await self.remove_reaction(channel_message, emote, channel.server.me)
-                    return
+                await self.handle_dms(command, args, message)
             elif not (message.author.id == self.config.owner_id and command == 'joinserver'):
                 await self.send_message(message.channel, 'You cannot use this bot in private messages.')
                 return
@@ -2034,7 +2051,10 @@ class MusicBot(discord.Client):
                 return
         else:
             self.safe_print("[Command] {0.id}/{0.name} ({1})".format(message.author, message_content))
-        handler = getattr(self, 'cmd_%s' % command, None)
+        if uses_alternate:
+            handler = getattr(self, 'alt_cmd_%s' % command, None)
+        else:
+            handler = getattr(self, 'cmd_%s' % command, None)
         if not handler:
             return
 
@@ -2169,6 +2189,40 @@ class MusicBot(discord.Client):
         if "Ambassador" not in before_roles and "Ambassador" in after_roles:
             #Ambassador was just given
             await self.schedule_removal(before, report_channel, days=7)
+
+    async def handle_dms(self, command, args, message):
+        awsw = discord.utils.get(self.servers, name="AwSW Fan Discord")
+        if command == "echo":
+            channel = discord.utils.get(awsw.channels, name=args[0])
+            await self.send_message(channel, args[1], tts="tts" in args)
+        elif command in ["edit", "delete"]:
+            channel = discord.utils.get(awsw.channels, name=args[0])
+            async for message in self.logs_from(channel):
+                try:
+                    if message.id == args[1]:
+                        if command == "edit":
+                            await self.edit_message(message, args[2])
+                        elif command == "delete":
+                            await self.delete_message(message)
+                except:
+                    self.safe_print("\n".join((message.content, str(message.author), channel.name)))
+                    traceback.print_exc()
+        elif command == "stealth_play":
+            command = "play"
+            message.channel = discord.utils.get(awsw.channels, name="dj")
+        elif command == "emote":
+            emote = discord.utils.get(self.get_all_emojis(), name=args[0])
+            if not emote:
+                await self.send_message(message.channel, "Could not find emote")
+                return
+            await self.send_message(message.channel, str(emote.server))
+            channel = discord.utils.get(self.get_all_channels(), name=args[1])
+            async for channel_message in self.logs_from(channel):
+                if channel_message.id == args[2]:
+                    await self.add_reaction(channel_message, emote)
+                    await asyncio.sleep(5)
+                    await self.remove_reaction(channel_message, emote, channel.server.me)
+            return
 
     async def cmd_remove_fresh(self, message, channel):
         for user in message.mentions:

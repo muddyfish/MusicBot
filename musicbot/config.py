@@ -45,7 +45,7 @@ class Config:
         config = configparser.ConfigParser(interpolation=None)
         config.read(config_file, encoding='utf-8')
 
-        confsections = {"Credentials", "Permissions", "Chat", "MusicBot"}.difference(config.sections())
+        confsections = {"Credentials", "Permissions", "Roles", "Chat", "MusicBot"}.difference(config.sections())
         if confsections:
             raise HelpfulError(
                 "One or more required config sections are missing.",
@@ -65,7 +65,9 @@ class Config:
         self.owner_id = config.get('Permissions', 'OwnerID', fallback=ConfigDefaults.owner_id)
         self.command_prefix = config.get('Chat', 'CommandPrefix', fallback=ConfigDefaults.command_prefix)
         self.bound_channels = config.get('Chat', 'BindToChannels', fallback=ConfigDefaults.bound_channels)
-        self.autojoin_channels =  config.get('Chat', 'AutojoinChannels', fallback=ConfigDefaults.autojoin_channels)
+        self.alternate_command_prefix = config.get('Chat', 'AlternateCommandPrefix', fallback=ConfigDefaults.alternate_command_prefix)
+        self.alternate_bound_channels = config.get('Chat', 'AlternateBindToChannels', fallback=ConfigDefaults.alternate_bound_channels)
+        self.autojoin_channels = config.get('Chat', 'AutojoinChannels', fallback=ConfigDefaults.autojoin_channels)
 
         self.default_volume = config.getfloat('MusicBot', 'DefaultVolume', fallback=ConfigDefaults.default_volume)
         self.skips_required = config.getint('MusicBot', 'SkipsRequired', fallback=ConfigDefaults.skips_required)
@@ -81,6 +83,10 @@ class Config:
 
         self.blacklist_file = config.get('Files', 'BlacklistFile', fallback=ConfigDefaults.blacklist_file)
         self.auto_playlist_file = config.get('Files', 'AutoPlaylistFile', fallback=ConfigDefaults.auto_playlist_file)
+
+        self.giveable_roles = config.get("Roles", "GiveableRoles", fallback=ConfigDefaults.giveable_roles)
+        self.fresh_role = config.get("Roles", "FreshRole", fallback=ConfigDefaults.fresh_role)
+        self.other_bot = config.get("Roles", "OtherBot", fallback=ConfigDefaults.other_bot)
 
         self.run_checks()
 
@@ -146,6 +152,19 @@ class Config:
                 print("[Warning] BindToChannels data invalid, will not bind to any channels")
                 self.bound_channels = set()
 
+        if self.alternate_bound_channels:
+            try:
+                self.alternate_bound_channels = set(x for x in self.alternate_bound_channels.split() if x)
+            except:
+                print("[Warning] AlternateBindToChannels data invalid, will not bind to any channels")
+                self.alternate_bound_channels = set()
+        if self.giveable_roles:
+            try:
+                self.giveable_roles = set(x for x in self.giveable_roles.split() if x)
+            except:
+                print("[Warning] GiveableRoles data invalid, will not give any roles")
+                self.giveable_roles = set()
+
         if self.autojoin_channels:
             try:
                 self.autojoin_channels = set(x for x in self.autojoin_channels.split() if x)
@@ -175,6 +194,8 @@ class ConfigDefaults:
     command_prefix = '!'
     bound_channels = set()
     autojoin_channels = set()
+    alternate_command_prefix = '.'
+    alternate_bound_channels = set()
 
     default_volume = 0.15
     skips_required = 4
@@ -191,6 +212,10 @@ class ConfigDefaults:
     options_file = 'config/options.ini'
     blacklist_file = 'config/blacklist.txt'
     auto_playlist_file = 'config/autoplaylist.txt' # this will change when I add playlists
+
+    giveable_roles = set()
+    fresh_role = None
+    other_bot = None
 
 # These two are going to be wrappers for the id lists, with add/remove/load/save functions
 # and id/object conversion so types aren't an issue
