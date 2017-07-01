@@ -860,7 +860,7 @@ class MusicBot(discord.Client):
         except:
             raise exceptions.CommandError('Invalid URL provided:\n{}\n'.format(server_link), expire_in=30)
 
-    async def cmd_play(self, player, channel, author, permissions, leftover_args, song_url):
+    async def cmd_play(self, player, channel, author, message, permissions, leftover_args, song_url=""):
         """
         Usage:
             {command_prefix}play song_link
@@ -870,7 +870,13 @@ class MusicBot(discord.Client):
         result from a youtube search is added to the queue.
         """
 
+        if message.attachments:
+            song_url = message.attachments[0]["url"]
+
         song_url = song_url.strip('<>')
+
+        if not song_url:
+            return Response("```{}```".format(self.cmd_play.__doc__))
 
         if permissions.max_songs and player.playlist.count_for_user(author) >= permissions.max_songs:
             raise exceptions.PermissionsError(
