@@ -77,7 +77,8 @@ class Playlist(EventEmitter):
             if content_type:
                 if content_type.startswith(('application/', 'image/')):
                     if '/ogg' not in content_type:  # How does a server say `application/ogg` what the actual fuck
-                        raise ExtractionError("Invalid content type \"%s\" for url %s" % (content_type, song_url))
+                        if "/octet-stream" not in content_type:
+                            raise ExtractionError("Invalid content type \"%s\" for url %s" % (content_type, song_url))
 
                 elif not content_type.startswith(('audio/', 'video/')):
                     print("[Warning] Questionable content type \"%s\" for url %s" % (content_type, song_url))
