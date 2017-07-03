@@ -870,7 +870,7 @@ class MusicBot(discord.Client):
         result from a youtube search is added to the queue.
         """
 
-        if message.attachments:
+        if hasattr(message, "attachments") and message.attachments:
             song_url = message.attachments[0]["url"]
 
         song_url = song_url.strip('<>')
