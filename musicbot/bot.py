@@ -2032,9 +2032,9 @@ class MusicBot(discord.Client):
             if not uses_alternate:
                 return
 
-        if message.author == self.user:
-            self.safe_print("Ignoring command from myself (%s)" % message.content)
-            return
+        #if message.author == self.user:
+        #    self.safe_print("Ignoring command from myself (%s)" % message.content)
+        #    return
 
         if uses_alternate:
             if self.config.alternate_bound_channels and message.channel.id not in self.config.alternate_bound_channels and not message.channel.is_private:
@@ -2195,6 +2195,9 @@ class MusicBot(discord.Client):
         if "Ambassador" not in before_roles and "Ambassador" in after_roles:
             #Ambassador was just given
             await self.schedule_removal(before, report_channel, days=7)
+        if "Enlightened" not in before_roles and "Enlightened" in after_roles and "Uninformed" in after_roles:
+            role = discord.utils.get(after.roles, name="Uninformed")
+            await self.remove_roles(after, role)
 
     async def handle_dms(self, command, args, message):
         awsw = discord.utils.get(self.servers, name="AwSW Fan Discord")
