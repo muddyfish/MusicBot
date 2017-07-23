@@ -2195,7 +2195,7 @@ class MusicBot(discord.Client):
         if "Ambassador" not in before_roles and "Ambassador" in after_roles:
             #Ambassador was just given
             await self.schedule_removal(before, report_channel, days=7)
-        if "Enlightened" not in before_roles and "Enlightened" in after_roles and "Uninformed" in after_roles:
+        if "Enlightened" in after_roles and "Uninformed" in after_roles:
             role = discord.utils.get(after.roles, name="Uninformed")
             await self.remove_roles(after, role)
 
