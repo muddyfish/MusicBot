@@ -5,6 +5,7 @@ import traceback
 
 from .exceptions import ExtractionError
 from .utils import get_header, md5sum
+from .local_song import get_info
 
 
 class BasePlaylistEntry:
@@ -168,20 +169,20 @@ class URLPlaylistEntry(BasePlaylistEntry):
                         os.listdir(self.download_folder)[flistdir.index(expected_fname_noex)]
                     )
 
-                    # print("Resolved %s to %s" % (self.expected_filename, lfile))
+                    print("Resolved %s to %s" % (self.expected_filename, lfile))
                     lsize = os.path.getsize(lfile)
-                    # print("Remote size: %s Local size: %s" % (rsize, lsize))
+                    print("Remote size: %s Local size: %s" % (rsize, lsize))
 
                     if lsize != rsize:
                         await self._really_download(hash=True)
                     else:
-                        # print("[Download] Cached:", self.url)
+                        print("[Download] Cached:", self.url)
                         self.filename = lfile
 
                 else:
-                    # print("File not found in cache (%s)" % expected_fname_noex)
+                    print("File not found in cache (%s)" % expected_fname_noex)
                     await self._really_download(hash=True)
-
+                self.title, self.duration = get_info(self.filename)
             else:
                 ldir = os.listdir(self.download_folder)
                 flistdir = [f.rsplit('.', 1)[0] for f in ldir]

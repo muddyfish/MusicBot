@@ -69,7 +69,6 @@ class Playlist(EventEmitter):
                 # https://github.com/KeepSafe/aiohttp/issues/852
                 content_type = await get_header(self.bot.aiosession, info['url'], 'CONTENT-TYPE')
                 print("Got content type", content_type)
-
             except Exception as e:
                 print("[Warning] Failed to get content type for url %s (%s)" % (song_url, e))
                 content_type = None
@@ -82,7 +81,6 @@ class Playlist(EventEmitter):
 
                 elif not content_type.startswith(('audio/', 'video/')):
                     print("[Warning] Questionable content type \"%s\" for url %s" % (content_type, song_url))
-
         entry = URLPlaylistEntry(
             self,
             song_url,

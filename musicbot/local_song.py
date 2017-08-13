@@ -33,10 +33,7 @@ def sort_songs(song_urls):
 
 
 def get_info(song_url):
-    try:
-        song = taglib.File(song_url.encode("utf-8"))
-    except:
-        return song_url, 0
+    song = taglib.File(song_url.encode("utf-8"))
     name = get_field(song, "TITLE", os.path.split(song_url)[-1][:-4])
     length = song.length
     return name, length

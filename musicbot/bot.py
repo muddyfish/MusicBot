@@ -1081,7 +1081,6 @@ class MusicBot(discord.Client):
             return Response("No file found with that id")
         return await self._cmd_queue_song_list(player, channel, files)
 
-
     async def cmd_queue_playlist(self, player, channel, path):
         """
         Usage: Add a predefined playlist to the queue.
@@ -2043,7 +2042,10 @@ class MusicBot(discord.Client):
             if self.config.bound_channels and message.channel.id not in self.config.bound_channels and not message.channel.is_private:
                 return  # if I want to log this I just move it under the prefix check
 
-        command, *args = shlex.split(message_content)  # Uh, doesn't this break prefixes with spaces in them (it doesn't, config parser already breaks them)
+        try:
+            command, *args = shlex.split(message_content)  # Uh, doesn't this break prefixes with spaces in them (it doesn't, config parser already breaks them)
+        except ValueError:
+            command, *args = message_content.split()
         command = command[len(self.config.command_prefix):].lower().strip()
 
         if message.channel.is_private:
