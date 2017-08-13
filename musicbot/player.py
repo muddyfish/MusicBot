@@ -2,6 +2,7 @@ import os
 import asyncio
 import audioop
 import traceback
+import discord
 
 from enum import Enum
 from array import array
@@ -232,7 +233,6 @@ class MusicPlayer(EventEmitter):
 
                 # In-case there was a player, kill it. RIP.
                 self._kill_current_player()
-
                 self._current_player = self._monkeypatch_player(self.voice_client.create_ffmpeg_player(
                     entry.filename,
                     before_options="-nostdin",
@@ -247,6 +247,14 @@ class MusicPlayer(EventEmitter):
                 self.state = MusicPlayerState.PLAYING
                 self._current_entry = entry
 
+                sample_rate = int(self.voice_client.encoder.sampling_rate)
+                channel = self.voice_client.channel
+                if channel.bitrate != sample_rate:
+                    try:
+                        await self.bot.edit_channel(channel,
+                                                    bitrate=sample_rate)
+                    except discord.errors.Forbidden:
+                        pass
                 self._current_player.start()
                 self.emit('play', player=self, entry=entry)
 
