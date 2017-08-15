@@ -2323,7 +2323,7 @@ class MusicBot(discord.Client):
         copy_user = react.reaction.emoji == "🇾"
         if copy_user:
             message_content = user.mention + " " + message_content
-        await self.safe_send_message(self.survey_channel, message_content)
+        await self.safe_send_message(self.survey_channel, "```~~~```"+message_content)
 
     async def cmd_unschedule(self, channel, message):
         rtn = []

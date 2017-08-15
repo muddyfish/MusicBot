@@ -143,14 +143,12 @@ class PermissionGroup:
             self.instaskip, PermissionsDefaults.InstaSkip
         )
 
-
     def add_user(self, uid):
         self.user_list.add(uid)
 
     def remove_user(self, uid):
         if uid in self.user_list:
             self.user_list.pop(uid)
-
 
     def __repr__(self):
         return "<PermissionGroup: %s>" % self.name
