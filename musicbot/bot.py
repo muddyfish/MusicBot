@@ -107,6 +107,7 @@ class MusicBot(discord.Client):
         super().__init__()
         self.aiosession = aiohttp.ClientSession(loop=self.loop)
         self.http.user_agent += ' MusicBot/%s' % BOTVERSION
+        self.survey_channel = None
 
     # TODO: Add some sort of `denied` argument for a message to send when someone else tries to use it
     def owner_only(func):
@@ -473,7 +474,6 @@ class MusicBot(discord.Client):
             game = discord.Game(name=name)
 
         await self.change_presence(game=game)
-
 
     async def safe_send_message(self, dest, content, *, tts=False, expire_in=0, also_delete=None, quiet=False):
         msg = None
@@ -2020,6 +2020,9 @@ class MusicBot(discord.Client):
     async def on_message(self, message):
         await self.wait_until_ready()
         message_content = message.content.strip()
+        if message.channel.is_private and message.author.id != self.user.id:
+            if self.survey_channel:
+                await self.handle_survey(message.author, message.channel, message_content)
 
         uses_alternate = message_content.startswith(self.config.alternate_command_prefix)
         if uses_alternate:
@@ -2300,6 +2303,27 @@ class MusicBot(discord.Client):
                     next_run_time.strftime("%Y-%m-%d %H:%M:%S %z")
                 ))
         await self.safe_send_message(channel, "\n".join(rtn))
+
+    async def cmd_start_survey(self, channel, channel_mentions):
+        self.survey_channel = channel_mentions[0]
+        await self.safe_send_message(channel, "Started a survey, responses will be copied to {}".format(self.survey_channel.mention))
+
+    async def cmd_end_survey(self, channel):
+        self.survey_channel = None
+        await self.safe_send_message(channel, "Stopped all surveys")
+
+    async def handle_survey(self, user, channel, message_content):
+        message = await self.safe_send_message(channel, "Do you want your username to be visible to staff?\n"
+                                                        "Your feedback will not be sent until a reaction is added")
+        await self.add_reaction(message, "🇾")
+        await self.add_reaction(message, "🇳")
+        react = await self.wait_for_reaction(["🇾", "🇳"],
+                                             message=message,
+                                             user=user)
+        copy_user = react.reaction.emoji == "🇾"
+        if copy_user:
+            message_content = user.mention + " " + message_content
+        await self.safe_send_message(self.survey_channel, message_content)
 
     async def cmd_unschedule(self, channel, message):
         rtn = []
