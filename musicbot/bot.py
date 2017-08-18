@@ -2164,7 +2164,6 @@ class MusicBot(discord.Client):
                     )
 
         except (exceptions.CommandError, exceptions.HelpfulError, exceptions.ExtractionError) as e:
-            print("{0.__class__}: {0.message}".format(e))
 
             expirein = e.expire_in if self.config.delete_messages else None
             alsodelete = message if self.config.delete_invoking else None
