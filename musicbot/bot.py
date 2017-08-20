@@ -10,6 +10,8 @@ import asyncio
 import traceback
 import glob
 import colorsys
+import json
+import aiofiles
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
@@ -75,7 +77,7 @@ class MusicBot(discord.Client):
     cycle_length = 100
     sleep_time = 0.1
 
-    def __init__(self, config_file=ConfigDefaults.options_file, perms_file=PermissionsDefaults.perms_file):
+    def __init__(self, config_file=ConfigDefaults.options_file, perms_file=PermissionsDefaults.perms_file, agreelist_file=ConfigDefaults.agreelist_file):
         MusicBot.bot = self
         self.players = {}
         self.the_voice_clients = {}
@@ -85,6 +87,9 @@ class MusicBot(discord.Client):
 
         self.config = Config(config_file)
         self.permissions = Permissions(perms_file, grant_all=[self.config.owner_id])
+        self.agreelist_file = agreelist_file
+        with open(agreelist_file) as agreelist_f:
+            self.agree_list = json.load(agreelist_f)
 
         self.blacklist = set(load_file(self.config.blacklist_file))
         self.autoplaylist = load_file(self.config.auto_playlist_file)
@@ -475,10 +480,10 @@ class MusicBot(discord.Client):
 
         await self.change_presence(game=game)
 
-    async def safe_send_message(self, dest, content, *, tts=False, expire_in=0, also_delete=None, quiet=False):
+    async def safe_send_message(self, dest, content, *, embed=None, tts=False, expire_in=0, also_delete=None, quiet=False):
         msg = None
         try:
-            msg = await self.send_message(dest, content, tts=tts)
+            msg = await self.send_message(dest, content, embed=embed, tts=tts)
 
             if msg and expire_in:
                 asyncio.ensure_future(self._wait_delete_msg(msg, expire_in))
@@ -1146,7 +1151,6 @@ class MusicBot(discord.Client):
                 await self.safe_send_message(channel, "No videos accepted for {}".format(search_term))
         write_file(os.path.join("playlists", name+".txt"), urls)
         await self.safe_send_message(channel, "Added playlist and saved as {}".format(name))
-
 
     async def cmd_add_playlist_urls(self, channel, playlist):
         name, *urls = playlist.split("\n")
@@ -1979,6 +1983,17 @@ class MusicBot(discord.Client):
         await self.disconnect_all_voice_clients()
         raise exceptions.TerminateSignal
 
+    async def cmd_agree(self, author):
+        await self.agree(author.id)
+        return Response("You have agreed to this bot storing information about you. You may now use commands",
+                        delete_after=10,
+                        reply=True)
+
+    async def agree(self, id):
+        self.agree_list.append(id)
+        async with aiofiles.open(self.agreelist_file, "w") as agreelist_f:
+            await agreelist_f.write(json.dumps(self.agree_list))
+
     async def alt_cmd_iam(self, author, role_name, server):
         for role in server.roles:
             if role.name.lower() == role_name.lower():
@@ -2034,6 +2049,7 @@ class MusicBot(discord.Client):
             if not uses_alternate:
                 return
 
+
         #if message.author == self.user:
         #    self.safe_print("Ignoring command from myself (%s)" % message.content)
         #    return
@@ -2050,6 +2066,20 @@ class MusicBot(discord.Client):
         except ValueError:
             command, *args = message_content.split()
         command = command[len(self.config.command_prefix):].lower().strip()
+
+        if (message.author.id not in self.agree_list) and command != "agree":
+            embed = discord.Embed(tile="Terms of Service Update",
+                                  description="This bot stores information about users in order to function.\n"
+                                    "In order to use any commands with this bot, you have to explicitly agree to this bot storing information about your Discord account.\n"
+                                    "This is in order to comply with the new terms of service for bot developers.\n"
+                                    "Type {}agree to use commands for this bot.".format(self.config.command_prefix),
+                                  colour=0x3485e7)
+            await self.safe_send_message(message.channel,
+                                         message.author.mention,
+                                         embed=embed,
+                                         expire_in=10 if self.config.delete_messages else 0,
+                                         also_delete=message if self.config.delete_invoking else None)
+            return
 
         if message.channel.is_private:
             if message.author.id in [self.config.owner_id, 186955497671360512, 104445625562570752, 152303040970489856, 279857235444760586, 140419299092201472]:
@@ -2200,6 +2230,7 @@ class MusicBot(discord.Client):
             #Ambassador was just given
             await self.replace_roles(after, discord.utils.get(after.roles, name="Ambassador"),
                                             discord.utils.get(after.server.roles, name="Fresh"))
+            self.agree(after.id)
             await self.schedule_removal(after, report_channel, days=7)
         if "Enlightened" in after_roles and "Uninformed" in after_roles:
             role = discord.utils.get(after.roles, name="Uninformed")

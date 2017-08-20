@@ -211,6 +211,7 @@ class ConfigDefaults:
 
     options_file = 'config/options.ini'
     blacklist_file = 'config/blacklist.txt'
+    agreelist_file = 'config/agreelist.json'
     auto_playlist_file = 'config/autoplaylist.txt' # this will change when I add playlists
 
     giveable_roles = set()
