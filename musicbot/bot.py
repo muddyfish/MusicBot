@@ -89,7 +89,7 @@ class MusicBot(discord.Client):
         self.permissions = Permissions(perms_file, grant_all=[self.config.owner_id])
         self.agreelist_file = agreelist_file
         with open(agreelist_file) as agreelist_f:
-            self.agree_list = json.load(agreelist_f)
+            self.agree_list = set(json.load(agreelist_f))
 
         self.blacklist = set(load_file(self.config.blacklist_file))
         self.autoplaylist = load_file(self.config.auto_playlist_file)
@@ -1990,9 +1990,26 @@ class MusicBot(discord.Client):
                         reply=True)
 
     async def agree(self, id):
-        self.agree_list.append(id)
+        self.agree_list.add(id)
         async with aiofiles.open(self.agreelist_file, "w") as agreelist_f:
-            await agreelist_f.write(json.dumps(self.agree_list))
+            await agreelist_f.write(json.dumps(list(self.agree_list)))
+
+    async def cmd_disagree(self, author):
+        jobs = self.jobstore.get_all_jobs()
+        for job in jobs:
+            user_id = job.id.split()[-1]
+            if author.id == user_id:
+                return Response("You still have the fresh role.\n"
+                                "You may not opt out of this bot storing information about you until a week passes from gaining the Ambassador role.\n"
+                                "You may only opt out by leaving the server at the moment.",
+                                delete_after=10,
+                                reply=True)
+        self.agree_list.remove(author.id)
+        async with aiofiles.open(self.agreelist_file, "w") as agreelist_f:
+            await agreelist_f.write(json.dumps(list(self.agree_list)))
+        return Response("This bot will no longer store information about you.",
+                        delete_after=10,
+                        reply=True)
 
     async def alt_cmd_iam(self, author, role_name, server):
         for role in server.roles:
