@@ -2077,7 +2077,7 @@ class MusicBot(discord.Client):
             await self.safe_send_message(message.channel,
                                          message.author.mention,
                                          embed=embed,
-                                         expire_in=10 if self.config.delete_messages else 0,
+                                         expire_in=30 if self.config.delete_messages else 0,
                                          also_delete=message if self.config.delete_invoking else None)
             return
 
