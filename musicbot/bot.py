@@ -2247,7 +2247,7 @@ class MusicBot(discord.Client):
             #Ambassador was just given
             await self.replace_roles(after, discord.utils.get(after.roles, name="Ambassador"),
                                             discord.utils.get(after.server.roles, name="Fresh"))
-            self.agree(after.id)
+            await self.agree(after.id)
             await self.schedule_removal(after, report_channel, days=7)
         if "Enlightened" in after_roles and "Uninformed" in after_roles:
             role = discord.utils.get(after.roles, name="Uninformed")
