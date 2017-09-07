@@ -2271,7 +2271,7 @@ class MusicBot(discord.Client):
                     traceback.print_exc()
         elif command == "stealth_play":
             command = "play"
-            message.channel = discord.utils.get(awsw.channels, name="dj")
+            message.channel = self.report_channel
         elif command == "emote":
             emote = discord.utils.get(self.get_all_emojis(), name=args[0])
             if not emote:
@@ -2445,7 +2445,8 @@ class MusicBot(discord.Client):
                               colour=0x00CC00)
         embed.set_author(name=member.name,
                          icon_url=member.avatar_url)
-        await self.send_message(self.report_channel, embed=embed)
+        if member.server.id == self.report_channel.server.id:
+            await self.send_message(self.report_channel, embed=embed)
 
     async def on_member_remove(self, member):
         embed = discord.Embed(title="Left the server",
@@ -2453,7 +2454,8 @@ class MusicBot(discord.Client):
                               colour=0xCC0000)
         embed.set_author(name=member.name,
                          icon_url=member.avatar_url)
-        await self.send_message(self.report_channel, embed=embed)
+        if member.server.id == self.report_channel.server.id:
+            await self.send_message(self.report_channel, embed=embed)
 
     async def on_voice_state_update(self, before, after):
         if not all([before, after]):
