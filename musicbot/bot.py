@@ -738,6 +738,7 @@ class MusicBot(discord.Client):
 
         self.scheduler.start()
         self.scheduler.print_jobs()
+        self.report_channel = self.get_channel(self.config.report_channel)
         await self.check_new_members()
         asyncio.ensure_future(self.cycle_colours())
         # t-t-th-th-that's all folks!
@@ -2234,21 +2235,19 @@ class MusicBot(discord.Client):
         for server in self.servers:
             fresh = discord.utils.get(server.roles, name="Fresh")
             ambassador = discord.utils.get(server.roles, name="Ambassador")
-            report_channel = discord.utils.get(server.channels, name="dj")
             for member in server.members:
                 if len(set(member.roles) & {fresh, ambassador}) == 2:
-                    await self.schedule_removal(member, report_channel, complain=False, days=7)
+                    await self.schedule_removal(member, complain=False, days=7)
 
     async def on_member_update(self, before, after):
         before_roles = [role.name for role in before.roles]
         after_roles = [role.name for role in after.roles]
-        report_channel = discord.utils.get(before.server.channels, name="dj")
         if "Ambassador" not in before_roles and "Ambassador" in after_roles:
             #Ambassador was just given
             await self.replace_roles(after, discord.utils.get(after.roles, name="Ambassador"),
                                             discord.utils.get(after.server.roles, name="Fresh"))
             await self.agree(after.id)
-            await self.schedule_removal(after, report_channel, days=7)
+            await self.schedule_removal(after, days=7)
         if "Enlightened" in after_roles and "Uninformed" in after_roles:
             role = discord.utils.get(after.roles, name="Uninformed")
             await self.remove_roles(after, role)
@@ -2287,16 +2286,16 @@ class MusicBot(discord.Client):
                     await self.remove_reaction(channel_message, emote, channel.server.me)
             return
 
-    async def cmd_remove_fresh(self, message, channel):
+    async def cmd_remove_fresh(self, message):
         for user in message.mentions:
             await self.remove_fresh(user.id)
 
-    async def schedule_removal(self, member, report_channel, message="Scheduled the removal of {} from Fresh in 7 days", complain=True, **kwargs):
+    async def schedule_removal(self, member, message="Scheduled the removal of {} from Fresh in 7 days", complain=True, **kwargs):
         if member.id in [job.id.split(" ")[-1] for job in self.jobstore.get_all_jobs()]:
             if complain:
-                await self.safe_send_message(report_channel, "{} already scheduled for removal".format(member.mention))
+                await self.safe_send_message(self.report_channel, "{} already scheduled for removal".format(member.mention))
             return
-        await self.safe_send_message(report_channel, message.format(member.mention))
+        await self.safe_send_message(self.report_channel, message.format(member.mention))
         self.scheduler.add_job(call_schedule,
                                'date',
                                id=self.get_id_args(self.remove_fresh, member.id),
@@ -2314,25 +2313,24 @@ class MusicBot(discord.Client):
     async def remove_fresh(self, user_id):
         server = discord.utils.get(self.servers, name="AwSW Fan Discord")
         try:
-            report_channel = discord.utils.get(server.channels, name="dj")
             user = discord.utils.get(server.members, id=user_id)
             role = discord.utils.get(server.roles, name="Fresh")
             if user and role:
                 if role in user.roles:
                     await self.remove_roles(user, role)
-                    await self.safe_send_message(report_channel, "Removed the fresh role from {}".format(user.mention))
+                    await self.safe_send_message(self.report_channel, "Removed the fresh role from {}".format(user.mention))
                 else:
-                    await self.safe_send_message(report_channel, "{} has already had Fresh removed from them".format(user.mention))
+                    await self.safe_send_message(self.report_channel, "{} has already had Fresh removed from them".format(user.mention))
             else:
-                await self.safe_send_message(report_channel, "Something went wrong removing the fresh role from user: {} (user not found or Fresh role not found)".format(user_id))
+                await self.safe_send_message(self.report_channel, "Something went wrong removing the fresh role from user: {} (user not found or Fresh role not found)".format(user_id))
         except Exception:
             traceback.print_exc()
             if self.config.debug_mode:
-                await self.safe_send_message(report_channel, '```\n%s\n```' % traceback.format_exc())
+                await self.safe_send_message(self.report_channel, '```\n%s\n```' % traceback.format_exc())
             if user:
-                await self.safe_send_message(report_channel, "Failed to remove the fresh role from {}".format(user.mention))
+                await self.safe_send_message(self.report_channel, "Failed to remove the fresh role from {}".format(user.mention))
             else:
-                await self.safe_send_message(report_channel, "Failed to remove the fresh role from {}".format(user_id))
+                await self.safe_send_message(self.report_channel, "Failed to remove the fresh role from {}".format(user_id))
 
     async def cmd_fresh_status(self, channel, server):
         jobs = self.jobstore.get_all_jobs()
@@ -2447,8 +2445,7 @@ class MusicBot(discord.Client):
                               colour=0x00CC00)
         embed.set_author(name=member.name,
                          icon_url=member.avatar_url)
-        dest = self.get_channel(self.config.report_channel)
-        await self.send_message(dest, embed=embed)
+        await self.send_message(self.report_channel, embed=embed)
 
     async def on_member_remove(self, member):
         embed = discord.Embed(title="Left the server",
@@ -2456,8 +2453,7 @@ class MusicBot(discord.Client):
                               colour=0xCC0000)
         embed.set_author(name=member.name,
                          icon_url=member.avatar_url)
-        dest = self.get_channel(self.config.report_channel)
-        await self.send_message(dest, embed=embed)
+        await self.send_message(self.report_channel, embed=embed)
 
     async def on_voice_state_update(self, before, after):
         if not all([before, after]):
