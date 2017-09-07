@@ -2437,6 +2437,28 @@ class MusicBot(discord.Client):
         b = int(b*255)
         return discord.Colour(r*(256**2)+g*256+b)
 
+    async def on_member_join(self, member):
+        embed = discord.Embed(title="Joined the server",
+                              description="Date joined discord: {}\n"
+                                          "Ping: {}\n"
+                                          "ID: {}".format(member.created_at,
+                                                          member.mention,
+                                                          member.id),
+                              colour=0x00CC00)
+        embed.set_author(name=member.name,
+                         icon_url=member.avatar_url)
+        dest = self.get_channel(self.config.report_channel)
+        await self.send_message(dest, embed=embed)
+
+    async def on_member_remove(self, member):
+        embed = discord.Embed(title="Left the server",
+                              description="Ping: {}".format(member.mention),
+                              colour=0xCC0000)
+        embed.set_author(name=member.name,
+                         icon_url=member.avatar_url)
+        dest = self.get_channel(self.config.report_channel)
+        await self.send_message(dest, embed=embed)
+
     async def on_voice_state_update(self, before, after):
         if not all([before, after]):
             return
