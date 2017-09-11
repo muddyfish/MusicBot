@@ -96,6 +96,7 @@ class MusicPlayer(EventEmitter):
         self.playlist = playlist
         self.playlist.on('entry-added', self.on_entry_added)
         self._volume = bot.config.default_volume
+        self.history = deque(maxlen=10)
 
         self._play_lock = asyncio.Lock()
         self._current_player = None
@@ -169,6 +170,8 @@ class MusicPlayer(EventEmitter):
             self._current_player.after = None
             self._kill_current_player()
 
+        if "author" in entry.meta:
+            self.history.appendleft(entry)
         self._current_entry = None
 
         if not self.is_stopped and not self.is_dead:
@@ -181,7 +184,6 @@ class MusicPlayer(EventEmitter):
             else:
                 # print("[Config:SaveVideos] Deleting file: %s" % os.path.relpath(entry.filename))
                 asyncio.ensure_future(self._delete_file(entry.filename))
-
         self.emit('finished-playing', player=self, entry=entry)
 
     def _kill_current_player(self):

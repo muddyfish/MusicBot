@@ -67,8 +67,9 @@ class SkipState:
 
 
 class Response:
-    def __init__(self, content, reply=False, delete_after=0):
+    def __init__(self, content="", reply=False, delete_after=0, embed=None):
         self.content = content
+        self.embed = embed
         self.reply = reply
         self.delete_after = delete_after
 
@@ -480,7 +481,7 @@ class MusicBot(discord.Client):
 
         await self.change_presence(game=game)
 
-    async def safe_send_message(self, dest, content, *, embed=None, tts=False, expire_in=0, also_delete=None, quiet=False):
+    async def safe_send_message(self, dest, content=None, *, embed=None, tts=False, expire_in=0, also_delete=None, quiet=False):
         msg = None
         try:
             msg = await self.send_message(dest, content, embed=embed, tts=tts)
@@ -1168,6 +1169,16 @@ class MusicBot(discord.Client):
         self.autoplaylist = self.parse_playlist(playlist)
         self.config.auto_playlist = True
         return Response("Changed the autoplaylist to {}".format(safe_path))
+
+    async def cmd_history(self, player):
+        text = []
+        for i, entry in enumerate(player.history):
+            text.append("{}. [{}]({})".format(i+1, entry.title, getattr(entry, "url", "")))
+        text = "\n".join(text) or "There have been no played songs"
+        embed = discord.Embed(title="History",
+                              description=text,
+                              colour=0x3485e7)
+        return Response(embed=embed, delete_after=60)
 
     async def _cmd_queue_song_list(self, player, channel, song_list):
         f_id = defaultdict(lambda: "")
@@ -2206,7 +2217,7 @@ class MusicBot(discord.Client):
                     if response.reply:
                         content = '%s, %s' % (message.author.mention, content)
                     sentmsg = await self.safe_send_message(
-                        message.channel, content,
+                        message.channel, content, embed=response.embed,
                         expire_in=response.delete_after if self.config.delete_messages else 0,
                         also_delete=message if self.config.delete_invoking else None
                     )
@@ -2437,7 +2448,7 @@ class MusicBot(discord.Client):
 
     async def on_member_join(self, member):
         embed = discord.Embed(title="Joined the server",
-                              description="Date joined discord: {}\n"
+                              description="Account Created: {}\n"
                                           "Ping: {}\n"
                                           "ID: {}".format(member.created_at,
                                                           member.mention,
