@@ -891,10 +891,7 @@ class MusicBot(discord.Client):
             )
 
 
-        invisible = leftover_args and leftover_args[-1] == "invis"
-        if invisible:
-            leftover_args = leftover_args[:-1]
-            author = await self.get_user_info("186955497671360512")
+        invisible = False
         if leftover_args:
             song_url = ' '.join([song_url, *leftover_args])
             await self.send_typing(channel)
