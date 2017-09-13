@@ -1687,21 +1687,35 @@ class MusicBot(discord.Client):
             song_progress = str(timedelta(seconds=player.progress)).lstrip('0').lstrip(':')
             song_total = str(timedelta(seconds=player.current_entry.duration)).lstrip('0').lstrip(':')
             prog_str = '`[%s/%s]`' % (song_progress, song_total)
-
+            if hasattr(player.current_entry, "url"):
+                name = "[{}]({})".format(player.current_entry.title,
+                                         getattr(player.current_entry, "url", ""))
+            else:
+                name = player.current_entry.title
             if player.current_entry.meta.get('channel', False) and player.current_entry.meta.get('author', False):
                 lines.append("Now Playing: **%s** added by **%s** %s\n" % (
-                    player.current_entry.title, player.current_entry.meta['author'].name, prog_str))
+                    name,
+                    player.current_entry.meta['author'].name,
+                    prog_str))
             else:
-                lines.append("Now Playing: **%s** %s\n" % (player.current_entry.title, prog_str))
+                lines.append("Now Playing: **%s** %s\n" % (name, prog_str))
 
         for i, item in enumerate(player.playlist, 1):
-            if item.meta.get("invisible", False):
-                continue
+            if hasattr(item, "url"):
+                name = "[{}]({})".format(item.title,
+                                         getattr(item, "url", ""))
+            else:
+                name = item.title
             song_total = str(timedelta(seconds=item.duration)).lstrip('0').lstrip(':')
             if item.meta.get('channel', False) and item.meta.get('author', False):
-                nextline = '`{}.` **{}** added by **{}** [{}]'.format(i, item.title, item.meta['author'].name, song_total).strip()
+                nextline = '`{}.` **{}** added by **{}** [{}]'.format(i,
+                                                                      name,
+                                                                      item.meta['author'].name,
+                                                                      song_total).strip()
             else:
-                nextline = '`{}.` **{}** [{}]'.format(i, item.title, song_total).strip()
+                nextline = '`{}.` **{}** [{}]'.format(i,
+                                                      name,
+                                                      song_total).strip()
 
             currentlinesum = sum(len(x) + 1 for x in lines)  # +1 is for newline char
 
@@ -1719,8 +1733,10 @@ class MusicBot(discord.Client):
             lines.append(
                 'There are no songs queued! Queue something with {}play.'.format(self.config.command_prefix))
 
-        message = '\n'.join(lines)
-        return Response(message, delete_after=30)
+        embed = discord.Embed(title="Queue",
+                              description="\n".join(lines),
+                              colour=0x3485e7)
+        return Response(embed=embed, delete_after=30)
 
     async def cmd_remove_queue(self, player, remove_id):
         try:
