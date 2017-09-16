@@ -890,8 +890,6 @@ class MusicBot(discord.Client):
                 "You have reached your enqueued song limit (%s)" % permissions.max_songs, expire_in=30
             )
 
-
-        invisible = False
         if leftover_args:
             song_url = ' '.join([song_url, *leftover_args])
             await self.send_typing(channel)
@@ -1064,8 +1062,7 @@ class MusicBot(discord.Client):
 
             reply_text %= (btext, position, time_until)
 
-        if not invisible:
-            return Response(reply_text, delete_after=30)
+        return Response(reply_text, delete_after=30)
 
     async def cmd_play_local(self, player, channel, path):
         """
@@ -1559,7 +1556,14 @@ class MusicBot(discord.Client):
         player.playlist.clear()
         return Response(':put_litter_in_its_place:', delete_after=20)
 
-    async def cmd_skip(self, player, channel, author, message, permissions, voice_channel):
+    async def cmd_next(self, player, message, permissions):
+        if permissions.instaskip:
+            player.skip()
+            return Response("The next song will start playing shortly", delete_after=10)
+        return Response("You don't have permission to use this command")
+
+
+    async def cmd_skip(self, player, author, message, voice_channel):
         """
         Usage:
             {command_prefix}skip
@@ -1585,16 +1589,10 @@ class MusicBot(discord.Client):
                 print("Something strange is happening.  "
                       "You might want to restart the bot if it doesn't start working.")
 
-        if author.id == self.config.owner_id \
-                or permissions.instaskip \
-                or author == player.current_entry.meta.get('author', None):
-
+        if author == player.current_entry.meta.get('author', None):
             player.skip()  # check autopause stuff here
             await self._manual_delete_check(message)
             return
-
-        # TODO: ignore person if they're deaf or take them out of the list or something?
-        # Currently is recounted if they vote, deafen, then vote
 
         num_voice = sum(1 for m in voice_channel.voice_members if not (
             m.deaf or m.self_deaf or m.id in [self.config.owner_id, self.user.id]))
@@ -1907,8 +1905,7 @@ class MusicBot(discord.Client):
 
         return Response(":mailbox_with_mail:", delete_after=20)
 
-
-    async def cmd_perms(self, author, channel, server, permissions):
+    async def cmd_perms(self, author, server, permissions):
         """
         Usage:
             {command_prefix}perms
@@ -1992,7 +1989,6 @@ class MusicBot(discord.Client):
             raise exceptions.CommandError("Unable to change avatar: %s" % e, expire_in=20)
 
         return Response(":ok_hand:", delete_after=20)
-
 
     async def cmd_disconnect(self, server):
         await self.disconnect_voice_client(server)
@@ -2090,11 +2086,6 @@ class MusicBot(discord.Client):
         if not message_content.startswith(self.config.command_prefix):
             if not uses_alternate:
                 return
-
-
-        #if message.author == self.user:
-        #    self.safe_print("Ignoring command from myself (%s)" % message.content)
-        #    return
 
         if uses_alternate:
             if self.config.alternate_bound_channels and message.channel.id not in self.config.alternate_bound_channels and not message.channel.is_private:
