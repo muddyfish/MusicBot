@@ -396,8 +396,6 @@ class MusicBot(discord.Client):
 
     async def on_player_play(self, player, entry):
         player.skip_state.reset()
-        if entry.meta.get("invisible", False):
-            return
         await self.update_now_playing(entry)
 
         channel = entry.meta.get('channel', None)
@@ -1033,7 +1031,7 @@ class MusicBot(discord.Client):
                 )
 
             try:
-                entry, position = await player.playlist.add_entry(song_url, channel=channel, author=author, invisible=invisible)
+                entry, position = await player.playlist.add_entry(song_url, channel=channel, author=author)
 
             except exceptions.WrongEntryTypeError as e:
                 if e.use_url == song_url:
@@ -1293,7 +1291,7 @@ class MusicBot(discord.Client):
         return Response("Enqueued {} songs to be played in {} seconds".format(
             songs_added, self._fixg(ttime, 1)), delete_after=30)
 
-    async def cmd_search(self, player, channel, author, permissions, leftover_args):
+    async def cmd_search(self, player, channel, author, message, permissions, leftover_args):
         """
         Usage:
             {command_prefix}search [service] [number] query
@@ -1412,8 +1410,8 @@ class MusicBot(discord.Client):
                 await self.safe_delete_message(result_message)
                 await self.safe_delete_message(confirm_message)
                 await self.safe_delete_message(response_message)
-
-                await self.cmd_play(player, channel, author, permissions, [], e['webpage_url'])
+                #player, channel, author, message, permissions, leftover_args, song_url
+                await self.cmd_play(player, channel, author, message, permissions, [], e['webpage_url'])
 
                 return Response("Alright, coming right up!", delete_after=30)
             else:
