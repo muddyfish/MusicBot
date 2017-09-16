@@ -39,19 +39,10 @@ class Permissions:
                 raise RuntimeError("Unable to copy config/example_permissions.ini to %s: %s" % (config_file, e))
 
         self.default_group = PermissionGroup('Default', self.config['Default'])
-        self.groups = set()
+        self.groups = []
 
         for section in self.config.sections():
-            self.groups.add(PermissionGroup(section, self.config[section]))
-
-        # Create a fake section to fallback onto the permissive default values to grant to the owner
-        # noinspection PyTypeChecker
-        owner_group = PermissionGroup("Owner (auto)", configparser.SectionProxy(self.config, None))
-        if hasattr(grant_all, '__iter__'):
-            owner_group.user_list = set(grant_all)
-
-        self.groups.add(owner_group)
-
+            self.groups.append(PermissionGroup(section, self.config[section]))
 
     def save(self):
         with open(self.config_file, 'w') as f:
@@ -63,7 +54,7 @@ class Permissions:
         :param user: A discord User or Member object
         """
 
-        for group in self.groups:
+        for group in reversed(self.groups):
             if user.id in group.user_list:
                 return group
 
@@ -72,7 +63,7 @@ class Permissions:
             return self.default_group
 
         # We loop again so that we don't return a role based group before we find an assigned one
-        for group in self.groups:
+        for group in reversed(self.groups):
             for role in user.roles:
                 if role.id in group.granted_to_roles:
                     return group
@@ -80,9 +71,8 @@ class Permissions:
         return self.default_group
 
     def create_group(self, name, **kwargs):
-        self.config.read_dict({name:kwargs})
-        self.groups.add(PermissionGroup(name, self.config[name]))
-        # TODO: Test this
+        self.config.read_dict({name: kwargs})
+        self.groups.append(PermissionGroup(name, self.config[name]))
 
 
 class PermissionGroup:
