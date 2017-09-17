@@ -93,21 +93,19 @@ class MusicBot(discord.Client):
             self.agree_list = set(json.load(agreelist_f))
 
         self.blacklist = set(load_file(self.config.blacklist_file))
-        self.autoplaylist = load_file(self.config.auto_playlist_file)
+        self.default_autoplaylist = load_file(self.config.auto_playlist_file)
         self.downloader = downloader.Downloader(download_folder='audio_cache')
 
         self.exit_signal = None
         self.init_ok = False
         self.cached_client_id = None
 
-        if not self.autoplaylist:
+        if not self.default_autoplaylist:
             print("Warning: Autoplaylist is empty, disabling.")
-            self.config.auto_playlist = False
-        else:
-            self.autoplaylist = self.parse_playlist(self.autoplaylist)
+        self.default_autoplaylist = self.parse_playlist(self.default_autoplaylist)
 
         # TODO: Do these properly
-        ssd_defaults = {'last_np_msg': None, 'auto_paused': False}
+        ssd_defaults = {'last_np_msg': None, 'auto_paused': False, 'autoplaylist': self.default_autoplaylist}
         self.server_specific_data = defaultdict(lambda: dict(ssd_defaults))
 
         super().__init__()
@@ -196,8 +194,7 @@ class MusicBot(discord.Client):
                     if player.is_stopped:
                         player.play()
 
-                    if self.config.auto_playlist:
-                        await self.on_player_finished_playing(player)
+                    await self.on_player_finished_playing(player)
 
                     joined_servers.append(channel.server)
                 except Exception as e:
@@ -432,28 +429,29 @@ class MusicBot(discord.Client):
         await self.update_now_playing()
 
     async def on_player_finished_playing(self, player, **_):
-        if not player.playlist.entries and not player.current_entry and self.config.auto_playlist:
-            while self.autoplaylist:
-                song_url = choice(self.autoplaylist)
+        if not player.playlist.entries and not player.current_entry:
+            autoplaylist = self.server_specific_data[player.voice_client.channel.server]["autoplaylist"]
+            if not autoplaylist:
+                autoplaylist = self.server_specific_data[player.voice_client.channel.server]["autoplaylist"] = self.default_autoplaylist
+            if not autoplaylist:
+                print("No autoplaylist")
+                return
+            done = False
+            while not done:
+                done = True
+                song_url = choice(autoplaylist)
                 local = not song_url.startswith("http")
                 if not local:
                     info = self.downloader.safe_extract_info(player.playlist.loop, song_url, download=False,
                                                              process=False)
                     if not info:
-                        self.safe_print("[Info] Removing unplayable song from autoplaylist: %s" % song_url)
-                        continue
-                # TODO: better checks here
+                        self.safe_print("[Info] Skipping {}".format(song_url))
+                        done = False
                 try:
                     await player.playlist.add_entry(song_url, channel=None, author=None, local=local)
                 except exceptions.ExtractionError as e:
                     print("Error adding song from autoplaylist:", e)
-                    continue
-
-                break
-
-            if not self.autoplaylist:
-                print("[Warning] No playable songs in the autoplaylist, disabling.")
-                self.config.auto_playlist = False
+                    done = False
 
     async def on_player_entry_added(self, playlist, entry, **_):
         pass
@@ -694,7 +692,6 @@ class MusicBot(discord.Client):
             self.config.skips_required, self._fixg(self.config.skip_ratio_required * 100)))
         print("  Now Playing @mentions: " + ['Disabled', 'Enabled'][self.config.now_playing_mentions])
         print("  Auto-Summon: " + ['Disabled', 'Enabled'][self.config.auto_summon])
-        print("  Auto-Playlist: " + ['Disabled', 'Enabled'][self.config.auto_playlist])
         print("  Auto-Pause: " + ['Disabled', 'Enabled'][self.config.auto_pause])
         print("  Delete Messages: " + ['Disabled', 'Enabled'][self.config.delete_messages])
         if self.config.delete_messages:
@@ -722,10 +719,9 @@ class MusicBot(discord.Client):
             owner_vc = await self._auto_summon()
 
             if owner_vc:
-                print("Done!", flush=True)  # TODO: Change this to "Joined server/channel"
-                if self.config.auto_playlist:
-                    print("Starting auto-playlist")
-                    await self.on_player_finished_playing(await self.get_player(owner_vc))
+                print("Done!", flush=True)
+                print("Starting auto-playlist")
+                await self.on_player_finished_playing(await self.get_player(owner_vc))
             else:
                 print("Owner not found in a voice channel, could not autosummon.")
 
@@ -1152,14 +1148,15 @@ class MusicBot(discord.Client):
         write_file(os.path.join("playlists", name+".txt"), urls)
         await self.safe_send_message(channel, "Added playlist and saved as {}".format(name))
 
-    async def cmd_set_autoplaylist(self, path):
+    async def cmd_set_autoplaylist(self, server, path):
         """
         Set the autoplaylist to a playlist
         """
         safe_path = slugify(path)
         playlist = load_file(os.path.join("playlists", safe_path+".txt"))
-        self.autoplaylist = self.parse_playlist(playlist)
-        self.config.auto_playlist = True
+        if not playlist:
+            return Response("Playlist {} not found".format(safe_path))
+        self.server_specific_data[server]["autoplaylist"] = self.parse_playlist(playlist)
         return Response("Changed the autoplaylist to {}".format(safe_path))
 
     async def cmd_history(self, player):
@@ -1488,8 +1485,7 @@ class MusicBot(discord.Client):
         if player.is_stopped:
             player.play()
 
-        if self.config.auto_playlist:
-            await self.on_player_finished_playing(player)
+        await self.on_player_finished_playing(player)
 
     async def cmd_pause(self, player):
         """
