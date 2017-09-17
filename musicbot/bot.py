@@ -836,8 +836,6 @@ class MusicBot(discord.Client):
             usr = user_mentions[0]
             return Response("%s's id is `%s`" % (usr.name, usr.id), reply=True, delete_after=35)
 
-
-    @owner_only
     async def cmd_joinserver(self, message, server_link=None):
         """
         Usage:
