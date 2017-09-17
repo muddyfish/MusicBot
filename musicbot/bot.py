@@ -1535,7 +1535,7 @@ class MusicBot(discord.Client):
         await self.safe_delete_message(hand, quiet=True)
         return Response(":ok_hand:", delete_after=15)
 
-    async def cmd_clear(self, player, author):
+    async def cmd_clear(self, player):
         """
         Usage:
             {command_prefix}clear
@@ -1545,6 +1545,17 @@ class MusicBot(discord.Client):
 
         player.playlist.clear()
         return Response(':put_litter_in_its_place:', delete_after=20)
+
+    async def cmd_top(self, player, queue_id):
+        try:
+            int(queue_id)
+        except:
+            return Response("Enter a number.  NUMBER.  That means digits. `15`. Etc.", reply=True, delete_after=8)
+        entries = player.playlist.entries
+        entry = entries[int(queue_id)-1]
+        del entries[int(queue_id)-1]
+        entries.appendleft(entry)
+        return Response("{} was moved to the top of the queue.".format(entry.title))
 
     async def cmd_next(self, player, message, permissions):
         if permissions.instaskip:
@@ -1729,7 +1740,7 @@ class MusicBot(discord.Client):
         try:
             int(remove_id)
         except:
-            return Response("enter a number.  NUMBER.  That means digits.  `15`.  Etc.", reply=True, delete_after=8)
+            return Response("Enter a number.  NUMBER.  That means digits.  `15`.  Etc.", reply=True, delete_after=8)
         entry = player.playlist.entries[int(remove_id)-1]
         del player.playlist.entries[int(remove_id)-1]
         return Response("Removed `{}` from the queue.".format(entry.title))
