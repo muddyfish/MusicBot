@@ -1411,9 +1411,7 @@ class MusicBot(discord.Client):
                 await self.safe_delete_message(confirm_message)
                 await self.safe_delete_message(response_message)
                 #player, channel, author, message, permissions, leftover_args, song_url
-                await self.cmd_play(player, channel, author, message, permissions, [], e['webpage_url'])
-
-                return Response("Alright, coming right up!", delete_after=30)
+                return await self.cmd_play(player, channel, author, message, permissions, [], e['webpage_url'])
             else:
                 await self.safe_delete_message(result_message)
                 await self.safe_delete_message(confirm_message)
@@ -1559,7 +1557,6 @@ class MusicBot(discord.Client):
             player.skip()
             return Response("The next song will start playing shortly", delete_after=10)
         return Response("You don't have permission to use this command")
-
 
     async def cmd_skip(self, player, author, message, voice_channel):
         """
