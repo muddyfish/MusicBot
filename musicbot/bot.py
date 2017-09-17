@@ -1509,7 +1509,6 @@ class MusicBot(discord.Client):
 
         if player.is_paused:
             player.resume()
-
         else:
             raise exceptions.CommandError('Player is not paused.', expire_in=30)
 
