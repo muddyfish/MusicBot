@@ -2385,6 +2385,7 @@ class MusicBot(discord.Client):
         else:
             message_content = "`~~~`" + message_content
         await self.safe_send_message(self.survey_channel, message_content)
+        await self.safe_send_message(channel, "Your feedback was sent")
 
     async def cmd_unschedule(self, channel, message):
         rtn = []
