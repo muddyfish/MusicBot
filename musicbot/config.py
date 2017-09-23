@@ -21,9 +21,6 @@ class Config:
                 c = configparser.ConfigParser()
                 c.read(config_file, encoding='utf-8')
 
-                if not int(c.get('Permissions', 'OwnerID', fallback=0)): # jake pls no flame
-                    print("\nPlease configure config/options.ini and restart the bot.", flush=True)
-                    os._exit(1)
 
             except FileNotFoundError as e:
                 raise HelpfulError(
@@ -31,12 +28,6 @@ class Config:
                     "Grab the files back from the archive or remake them yourself and copy paste the content "
                     "from the repo.  Stop removing important files!"
                 )
-
-            except ValueError: # Config id value was changed but its not valid
-                print("\nInvalid value for OwnerID, config cannot be loaded.")
-                # TODO: HelpfulError
-                os._exit(4)
-
             except Exception as e:
                 print(e)
                 print("\nUnable to copy config/example_options.ini to %s" % config_file, flush=True)
@@ -45,7 +36,7 @@ class Config:
         config = configparser.ConfigParser(interpolation=None)
         config.read(config_file, encoding='utf-8')
 
-        confsections = {"Credentials", "Permissions", "Roles", "Chat", "MusicBot"}.difference(config.sections())
+        confsections = {"Credentials", "Roles", "Chat", "MusicBot"}.difference(config.sections())
         if confsections:
             raise HelpfulError(
                 "One or more required config sections are missing.",
@@ -56,13 +47,10 @@ class Config:
                 preface="An error has occured parsing the config:\n"
             )
 
-        self._email = config.get('Credentials', 'Email', fallback=ConfigDefaults.email)
-        self._password = config.get('Credentials', 'Password', fallback=ConfigDefaults.password)
         self._login_token = config.get('Credentials', 'Token', fallback=ConfigDefaults.token)
 
         self.auth = None
 
-        self.owner_id = config.get('Permissions', 'OwnerID', fallback=ConfigDefaults.owner_id)
         self.command_prefix = config.get('Chat', 'CommandPrefix', fallback=ConfigDefaults.command_prefix)
         self.bound_channels = config.get('Chat', 'BindToChannels', fallback=ConfigDefaults.bound_channels)
         self.alternate_command_prefix = config.get('Chat', 'AlternateCommandPrefix', fallback=ConfigDefaults.alternate_command_prefix)
@@ -91,60 +79,22 @@ class Config:
 
         self.run_checks()
 
-
     def run_checks(self):
         """
         Validation logic for bot settings.
         """
-        confpreface = "An error has occured reading the config:\n"
+        confpreface = "An error has occurred reading the config:\n"
 
-        if self._email or self._password:
-            if not self._email:
-                raise HelpfulError(
-                    "The login email was not specified in the config.",
-
-                    "Please put your bot account credentials in the config.  "
-                    "Remember that the Email is the email address used to register the bot account.",
-                    preface=confpreface)
-
-            if not self._password:
-                raise HelpfulError(
-                    "The password was not specified in the config.",
-
-                    "Please put your bot account credentials in the config.",
-                    preface=confpreface)
-
-            self.auth = (self._email, self._password)
-
-        elif not self._login_token:
+        if not self._login_token:
             raise HelpfulError(
                 "No login credentials were specified in the config.",
 
-                "Please fill in either the Email and Password fields, or "
-                "the Token field.  The Token field is for Bot accounts only.",
+                "Please fill in either the Token field. This bot only works for bot accounts",
                 preface=confpreface
             )
 
         else:
             self.auth = (self._login_token,)
-
-        if self.owner_id and self.owner_id.isdigit():
-            if int(self.owner_id) < 10000:
-                raise HelpfulError(
-                    "OwnerID was not set.",
-
-                    "Please set the OwnerID in the config.  If you "
-                    "don't know what that is, use the %sid command" % self.command_prefix,
-                    preface=confpreface)
-
-        else:
-            raise HelpfulError(
-                "An invalid OwnerID was set.",
-
-                "Correct your OwnerID.  The ID should be just a number, approximately "
-                "18 characters long.  If you don't know what your ID is, "
-                "use the %sid command.  Current invalid OwnerID: %s" % (self.command_prefix, self.owner_id),
-                preface=confpreface)
 
         if self.bound_channels:
             try:
@@ -187,11 +137,8 @@ class Config:
 
 
 class ConfigDefaults:
-    email = None    #
-    password = None # This is not where you put your login info, go away.
-    token = None    #
+    token = None
 
-    owner_id = None
     command_prefix = '!'
     bound_channels = set()
     autojoin_channels = set()

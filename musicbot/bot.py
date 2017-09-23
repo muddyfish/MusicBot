@@ -87,7 +87,7 @@ class MusicBot(discord.Client):
         self.voice_client_move_lock = asyncio.Lock()
 
         self.config = Config(config_file)
-        self.permissions = Permissions(perms_file, grant_all=[self.config.owner_id])
+        self.permissions = Permissions(perms_file, grant_all=[])
         self.agreelist_file = agreelist_file
         with open(agreelist_file) as agreelist_f:
             self.agree_list = set(json.load(agreelist_f))
@@ -113,14 +113,13 @@ class MusicBot(discord.Client):
         self.http.user_agent += ' MusicBot/%s' % BOTVERSION
         self.survey_channel = None
 
-    # TODO: Add some sort of `denied` argument for a message to send when someone else tries to use it
     def owner_only(func):
         @wraps(func)
         async def wrapper(self, *args, **kwargs):
             # Only allow the owner to use these commands
             orig_msg = _get_variable('message')
 
-            if not orig_msg or orig_msg.author.id == self.config.owner_id:
+            if not orig_msg or orig_msg.author.id == self.owner.id:
                 return await func(self, *args, **kwargs)
             else:
                 raise exceptions.PermissionsError("only the owner can use this command", expire_in=30)
@@ -130,25 +129,6 @@ class MusicBot(discord.Client):
     @staticmethod
     def _fixg(x, dp=2):
         return ('{:.%sf}' % dp).format(x).rstrip('0').rstrip('.')
-
-    def _get_owner(self, voice=False):
-        if voice:
-            for server in self.servers:
-                for channel in server.channels:
-                    for m in channel.voice_members:
-                        if m.id == self.config.owner_id:
-                            return m
-        else:
-            return discord.utils.find(lambda m: m.id == self.config.owner_id, self.get_all_members())
-
-    # TODO: autosummon option to a specific channel
-    async def _auto_summon(self):
-        owner = self._get_owner(voice=True)
-        if owner:
-            self.safe_print("Found owner in \"%s\", attempting to join..." % owner.voice_channel.name)
-            # TODO: Effort
-            await self.cmd_summon(owner.voice_channel, owner, None)
-            return owner.voice_channel
 
     async def _autojoin_channels(self, channels):
         joined_servers = []
@@ -211,8 +191,7 @@ class MusicBot(discord.Client):
 
     async def generate_invite_link(self, *, permissions=None, server=None):
         if not self.cached_client_id:
-            appinfo = await self.application_info()
-            self.cached_client_id = appinfo.id
+            self.cached_client_id = self.owner.id
 
         return discord.utils.oauth_url(self.cached_client_id, permissions=permissions, server=server)
 
@@ -507,7 +486,8 @@ class MusicBot(discord.Client):
 
     def safe_print(self, content, *, end='\n', flush=True):
         sys.stdout.buffer.write((content + end).encode('utf-8', 'replace'))
-        if flush: sys.stdout.flush()
+        if flush:
+            sys.stdout.flush()
 
     async def send_typing(self, destination):
         try:
@@ -517,15 +497,12 @@ class MusicBot(discord.Client):
                 print("Could not send typing to %s, no permssion" % destination)
 
     async def edit_profile(self, **fields):
-        if self.user.bot:
-            return await super().edit_profile(**fields)
-        else:
-            return await super().edit_profile(self.config._password,**fields)
+        return await super().edit_profile(**fields)
 
     def _cleanup(self):
         try:
             self.loop.run_until_complete(self.logout())
-        except: # Can be ignored
+        except:
             pass
 
         pending = asyncio.Task.all_tasks()
@@ -535,8 +512,11 @@ class MusicBot(discord.Client):
             gathered.cancel()
             self.loop.run_until_complete(gathered)
             gathered.exception()
-        except: # Can be ignored
+        except:
             pass
+
+    async def get_owner(self):
+        return (await self.application_info()).owner
 
     # noinspection PyMethodOverriding
     def run(self):
@@ -586,40 +566,15 @@ class MusicBot(discord.Client):
             vc.main_ws = self.ws
 
     async def on_ready(self):
-        print('\rConnected!  Musicbot v%s\n' % BOTVERSION)
-
-        if self.config.owner_id == self.user.id:
-            raise exceptions.HelpfulError(
-                "Your OwnerID is incorrect or you've used the wrong credentials.",
-
-                "The bot needs its own account to function.  "
-                "The OwnerID is the id of the owner, not the bot.  "
-                "Figure out which one is which and use the correct information.")
-
         self.init_ok = True
-
+        print('\rConnected!  Musicbot v%s\n' % BOTVERSION)
         self.safe_print("Bot:   %s/%s#%s" % (self.user.id, self.user.name, self.user.discriminator))
+        self.owner = await self.get_owner()
+        self.safe_print("Owner: %s/%s#%s\n" % (self.owner.id, self.owner.name, self.owner.discriminator))
 
-        owner = self._get_owner(voice=True) or self._get_owner()
-        if owner and self.servers:
-            self.safe_print("Owner: %s/%s#%s\n" % (owner.id, owner.name, owner.discriminator))
-
-            print('Server List:')
-            [self.safe_print(' - ' + s.name) for s in self.servers]
-
-        elif self.servers:
-            print("Owner could not be found on any server (id: %s)\n" % self.config.owner_id)
-
-            print('Server List:')
-            [self.safe_print(' - ' + s.name) for s in self.servers]
-
-        else:
-            print("Owner unknown, bot is not on any servers.")
-            if self.user.bot:
-                print("\nTo make the bot join a server, paste this link in your browser.")
-                print("Note: You should be logged into your main account and have \n"
-                      "manage server permissions on the server you want the bot to join.\n")
-                print("    " + await self.generate_invite_link())
+        print('Server List:')
+        for s in self.servers:
+            self.safe_print(' - ' + s.name)
 
         print()
 
@@ -689,19 +644,6 @@ class MusicBot(discord.Client):
         if self.config.autojoin_channels:
             await self._autojoin_channels(autojoin_channels)
 
-        elif self.config.auto_summon:
-            print("Attempting to autosummon...", flush=True)
-
-            # waitfor + get value
-            owner_vc = await self._auto_summon()
-
-            if owner_vc:
-                print("Done!", flush=True)
-                print("Starting auto-playlist")
-                await self.on_player_finished_playing(await self.get_player(owner_vc))
-            else:
-                print("Owner not found in a voice channel, could not autosummon.")
-
         print()
         self.jobstore = SQLAlchemyJobStore(url='sqlite:///jobs.sqlite')
         jobstores = {"default": self.jobstore}
@@ -712,7 +654,6 @@ class MusicBot(discord.Client):
         self.scheduler.print_jobs()
         self.report_channel = self.get_channel(self.config.report_channel)
         await self.check_new_members()
-        # t-t-th-th-that's all folks!
 
     async def cmd_help(self, command=None):
         """
@@ -752,7 +693,7 @@ class MusicBot(discord.Client):
 
             return Response(helpmsg, reply=True, delete_after=60)
 
-    async def cmd_blacklist(self, message, user_mentions, option, something):
+    async def cmd_blacklist(self, user_mentions, option):
         """
         Usage:
             {command_prefix}blacklist [ + | - | add | remove ] @UserName [@UserName2 ...]
@@ -770,7 +711,7 @@ class MusicBot(discord.Client):
             )
 
         for user in user_mentions.copy():
-            if user.id == self.config.owner_id:
+            if user.id == (await self.get_owner()).id:
                 print("[Commands:Blacklist] The owner cannot be blacklisted.")
                 user_mentions.remove(user)
 
@@ -1570,7 +1511,7 @@ class MusicBot(discord.Client):
             return
 
         num_voice = sum(1 for m in voice_channel.voice_members if not (
-            m.deaf or m.self_deaf or m.id in [self.config.owner_id, self.user.id]))
+            m.deaf or m.self_deaf or m.id in [self.owner.id, self.user.id]))
 
         num_skips = player.skip_state.add_skipper(author.id, message)
 
@@ -1742,7 +1683,7 @@ class MusicBot(discord.Client):
             return valid_call and not entry.content[1:2].isspace()
 
         delete_invokes = True
-        delete_all = channel.permissions_for(author).manage_messages or self.config.owner_id == author.id
+        delete_all = channel.permissions_for(author).manage_messages or self.owner.id == author.id
 
         def check(message):
             if is_possible_command_invoke(message) and delete_invokes:
@@ -2045,7 +1986,7 @@ class MusicBot(discord.Client):
             return
 
         if message.channel.is_private:
-            if message.author.id in [self.config.owner_id, 186955497671360512, 104445625562570752, 152303040970489856, 279857235444760586, 140419299092201472]:
+            if message.author.id in [self.owner.id, 186955497671360512, 104445625562570752, 152303040970489856, 279857235444760586, 140419299092201472]:
                 await self.handle_dms(command, args, message)
             elif command != 'joinserver':
                 await self.send_message(message.channel, 'You cannot use this bot in private messages.')
@@ -2117,7 +2058,7 @@ class MusicBot(discord.Client):
                     handler_kwargs[key] = arg_value
                     params.pop(key)
 
-            if message.author.id != self.config.owner_id:
+            if message.author.id != self.owner.id:
                 if user_permissions.command_whitelist and command not in user_permissions.command_whitelist:
                     raise exceptions.PermissionsError(
                         "This command is not enabled for your group (%s)." % user_permissions.name,
