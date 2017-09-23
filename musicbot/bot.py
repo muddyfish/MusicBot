@@ -1613,9 +1613,8 @@ class MusicBot(discord.Client):
             currentlinesum = sum(len(x) + 1 for x in lines)  # +1 is for newline char
 
             if currentlinesum + len(nextline) + len(andmoretext) > DISCORD_MSG_CHAR_LIMIT:
-                if currentlinesum + len(andmoretext):
-                    unlisted += 1
-                    continue
+                unlisted += 1
+                continue
 
             lines.append(nextline)
 
