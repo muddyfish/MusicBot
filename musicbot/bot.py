@@ -141,23 +141,6 @@ class MusicBot(discord.Client):
         else:
             return discord.utils.find(lambda m: m.id == self.config.owner_id, self.get_all_members())
 
-    def _delete_old_audiocache(self, path=AUDIO_CACHE_PATH):
-        try:
-            shutil.rmtree(path)
-            return True
-        except:
-            try:
-                os.rename(path, path + '__')
-            except:
-                return False
-            try:
-                shutil.rmtree(path)
-            except:
-                os.rename(path + '__', path)
-                return False
-
-        return True
-
     # TODO: autosummon option to a specific channel
     async def _auto_summon(self):
         owner = self._get_owner(voice=True)
@@ -1802,51 +1785,6 @@ class MusicBot(discord.Client):
 
         return Response('Cleaned up {} message{}.'.format(deleted, 's' * bool(deleted)), delete_after=15)
 
-    async def cmd_pldump(self, channel, song_url):
-        """
-        Usage:
-            {command_prefix}pldump url
-
-        Dumps the individual urls of a playlist
-        """
-
-        try:
-            info = await self.downloader.extract_info(self.loop, song_url.strip('<>'), download=False, process=False)
-        except Exception as e:
-            raise exceptions.CommandError("Could not extract info from input url\n%s\n" % e, expire_in=25)
-
-        if not info:
-            raise exceptions.CommandError("Could not extract info from input url, no data.", expire_in=25)
-
-        if not info.get('entries', None):
-            # TODO: Retarded playlist checking
-            # set(url, webpageurl).difference(set(url))
-
-            if info.get('url', None) != info.get('webpage_url', info.get('url', None)):
-                raise exceptions.CommandError("This does not seem to be a playlist.", expire_in=25)
-            else:
-                return await self.cmd_pldump(channel, info.get(''))
-
-        linegens = defaultdict(lambda: None, **{
-            "youtube":    lambda d: 'https://www.youtube.com/watch?v=%s' % d['id'],
-            "soundcloud": lambda d: d['url'],
-            "bandcamp":   lambda d: d['url']
-        })
-
-        exfunc = linegens[info['extractor'].split(':')[0]]
-
-        if not exfunc:
-            raise exceptions.CommandError("Could not extract info from input url, unsupported playlist type.", expire_in=25)
-
-        with BytesIO() as fcontent:
-            for item in info['entries']:
-                fcontent.write(exfunc(item).encode('utf8') + b'\n')
-
-            fcontent.seek(0)
-            await self.send_file(channel, fcontent, filename='playlist.txt', content="Here's the url dump for <%s>" % song_url)
-
-        return Response(":mailbox_with_mail:", delete_after=20)
-
     async def cmd_listids(self, server, author, leftover_args, cat='all'):
         """
         Usage:
@@ -2487,14 +2425,8 @@ class MusicBot(discord.Client):
         if not my_voice_channel:
             return
 
-        if before.voice_channel == my_voice_channel:
-            joining = False
-        elif after.voice_channel == my_voice_channel:
-            joining = True
-        else:
+        if my_voice_channel not in (before.voice_channel, after.voice_channel):
             return  # Not my channel
-
-        moving = before == before.server.me
 
         auto_paused = self.server_specific_data[after.server]['auto_paused']
         player = await self.get_player(my_voice_channel)
@@ -2516,7 +2448,7 @@ class MusicBot(discord.Client):
                 self.server_specific_data[after.server]['auto_paused'] = True
                 player.pause()
 
-    async def on_server_update(self, before:discord.Server, after:discord.Server):
+    async def on_server_update(self, before: discord.Server, after: discord.Server):
         if before.region != after.region:
             self.safe_print("[Servers] \"%s\" changed regions: %s -> %s" % (after.name, before.region, after.region))
 
