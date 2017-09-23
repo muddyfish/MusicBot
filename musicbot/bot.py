@@ -745,7 +745,7 @@ class MusicBot(discord.Client):
             usr = user_mentions[0]
             return Response("%s's id is `%s`" % (usr.name, usr.id), reply=True, delete_after=35)
 
-    async def cmd_joinserver(self, server_link=None):
+    async def cmd_joinserver(self):
         """
         Usage:
             {command_prefix}joinserver invite_link
@@ -1341,7 +1341,7 @@ class MusicBot(discord.Client):
                 delete_after=30
             )
 
-    async def cmd_summon(self, channel, author, voice_channel):
+    async def cmd_summon(self, channel, author):
         """
         Usage:
             {command_prefix}summon
@@ -1418,7 +1418,7 @@ class MusicBot(discord.Client):
 
         player.playlist.shuffle()
 
-        cards = [':spades:',':clubs:',':hearts:',':diamonds:']
+        cards = [':spades:', ':clubs:', ':hearts:', ':diamonds:']
         hand = await self.send_message(channel, ' '.join(cards))
         await asyncio.sleep(0.6)
 
@@ -1452,7 +1452,7 @@ class MusicBot(discord.Client):
         entries.appendleft(entry)
         return Response("{} was moved to the top of the queue.".format(entry.title))
 
-    async def cmd_next(self, player, message, permissions):
+    async def cmd_next(self, player, permissions):
         if permissions.instaskip:
             player.skip()
             return Response("The next song will start playing shortly", delete_after=10)
@@ -1522,7 +1522,7 @@ class MusicBot(discord.Client):
                 delete_after=20
             )
 
-    async def cmd_volume(self, message, player, new_volume=None):
+    async def cmd_volume(self, player, new_volume=None):
         """
         Usage:
             {command_prefix}volume (+/-)[volume]
@@ -1564,7 +1564,7 @@ class MusicBot(discord.Client):
                 raise exceptions.CommandError(
                     'Unreasonable volume provided: {}%. Provide a value between 1 and 100.'.format(new_volume), expire_in=20)
 
-    async def cmd_queue(self, channel, player):
+    async def cmd_queue(self, player):
         """
         Usage:
             {command_prefix}queue
@@ -2069,27 +2069,23 @@ class MusicBot(discord.Client):
                 for content in paginate(response.content):
                     if response.reply:
                         content = '%s, %s' % (message.author.mention, content)
-                    sentmsg = await self.safe_send_message(
-                        message.channel, content, embed=response.embed,
-                        expire_in=response.delete_after if self.config.delete_messages else 0,
-                        also_delete=message if self.config.delete_invoking else None
-                    )
+                    await self.safe_send_message(message.channel,
+                                                 content,
+                                                 embed=response.embed,
+                                                 expire_in=response.delete_after if self.config.delete_messages else 0,
+                                                 also_delete=message if self.config.delete_invoking else None)
 
         except (exceptions.CommandError, exceptions.HelpfulError, exceptions.ExtractionError) as e:
 
             expirein = e.expire_in if self.config.delete_messages else None
             alsodelete = message if self.config.delete_invoking else None
 
-            await self.safe_send_message(
-                message.channel,
-                '```\n%s\n```' % e.message,
-                expire_in=expirein,
-                also_delete=alsodelete
-            )
-
+            await self.safe_send_message(message.channel,
+                                         '```\n%s\n```' % e.message,
+                                         expire_in=expirein,
+                                         also_delete=alsodelete)
         except exceptions.Signal:
             raise
-
         except Exception:
             traceback.print_exc()
             if self.config.debug_mode:
@@ -2133,9 +2129,6 @@ class MusicBot(discord.Client):
                 except:
                     self.safe_print("\n".join((message.content, str(message.author), channel.name)))
                     traceback.print_exc()
-        elif command == "stealth_play":
-            command = "play"
-            message.channel = self.report_channel
         elif command == "emote":
             emote = discord.utils.get(self.get_all_emojis(), name=args[0])
             if not emote:
