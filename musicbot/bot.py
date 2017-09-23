@@ -686,12 +686,6 @@ class MusicBot(discord.Client):
         # maybe option to leave the ownerid blank and generate a random command for the owner to use
         # wait_for_message is pretty neato
 
-        if not self.config.save_videos and os.path.isdir(AUDIO_CACHE_PATH):
-            if self._delete_old_audiocache():
-                print("Deleting old audio cache")
-            else:
-                print("Could not delete old audio cache, moving on.")
-
         if self.config.autojoin_channels:
             await self._autojoin_channels(autojoin_channels)
 
@@ -2053,7 +2047,7 @@ class MusicBot(discord.Client):
         if message.channel.is_private:
             if message.author.id in [self.config.owner_id, 186955497671360512, 104445625562570752, 152303040970489856, 279857235444760586, 140419299092201472]:
                 await self.handle_dms(command, args, message)
-            elif not (message.author.id == self.config.owner_id and command == 'joinserver'):
+            elif command != 'joinserver':
                 await self.send_message(message.channel, 'You cannot use this bot in private messages.')
                 return
             else:
