@@ -420,16 +420,14 @@ class MusicBot(discord.Client):
 
     async def update_now_playing(self, entry=None, is_paused=False):
         game = None
+        activeplayers = sum(1 for p in self.players.values() if p.is_playing)
+        if activeplayers > 1:
+            game = discord.Game(name="music on %s servers" % activeplayers)
+            entry = None
 
-        if self.user.bot:
-            activeplayers = sum(1 for p in self.players.values() if p.is_playing)
-            if activeplayers > 1:
-                game = discord.Game(name="music on %s servers" % activeplayers)
-                entry = None
-
-            elif activeplayers == 1:
-                player = discord.utils.get(self.players.values(), is_playing=True)
-                entry = player.current_entry
+        elif activeplayers == 1:
+            player = discord.utils.get(self.players.values(), is_playing=True)
+            entry = player.current_entry
 
         if entry:
             prefix = u'\u275A\u275A ' if is_paused else ''
@@ -753,7 +751,7 @@ class MusicBot(discord.Client):
             usr = user_mentions[0]
             return Response("%s's id is `%s`" % (usr.name, usr.id), reply=True, delete_after=35)
 
-    async def cmd_joinserver(self, message, server_link=None):
+    async def cmd_joinserver(self, server_link=None):
         """
         Usage:
             {command_prefix}joinserver invite_link
@@ -761,20 +759,10 @@ class MusicBot(discord.Client):
         Asks the bot to join a server.  Note: Bot accounts cannot use invite links.
         """
 
-        if self.user.bot:
-            url = await self.generate_invite_link()
-            return Response(
-                "Bot accounts can't use invite links!  Click here to invite me: \n{}".format(url),
-                reply=True, delete_after=30
-            )
-
-        try:
-            if server_link:
-                await self.accept_invite(server_link)
-                return Response(":+1:")
-
-        except:
-            raise exceptions.CommandError('Invalid URL provided:\n{}\n'.format(server_link), expire_in=30)
+        url = await self.generate_invite_link()
+        return Response("Click here to invite me: \n{}".format(url),
+                        reply=True,
+                        delete_after=30)
 
     async def cmd_play(self, player, channel, author, message, permissions, leftover_args, song_url=""):
         """
@@ -1690,10 +1678,9 @@ class MusicBot(discord.Client):
                 return delete_all or message.author == author
             return message.author == self.user
 
-        if self.user.bot:
-            if channel.permissions_for(server.me).manage_messages:
-                deleted = await self.purge_from(channel, check=check, limit=search_range, before=message)
-                return Response('Cleaned up {} message{}.'.format(len(deleted), 's' * bool(deleted)), delete_after=15)
+        if channel.permissions_for(server.me).manage_messages:
+            deleted = await self.purge_from(channel, check=check, limit=search_range, before=message)
+            return Response('Cleaned up {} message{}.'.format(len(deleted), 's' * bool(deleted)), delete_after=15)
 
         deleted = 0
         async for entry in self.logs_from(channel, search_range, before=message):
