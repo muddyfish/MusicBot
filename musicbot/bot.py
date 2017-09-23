@@ -718,7 +718,6 @@ class MusicBot(discord.Client):
         self.scheduler.print_jobs()
         self.report_channel = self.get_channel(self.config.report_channel)
         await self.check_new_members()
-        asyncio.ensure_future(self.cycle_colours())
         # t-t-th-th-that's all folks!
 
     async def cmd_help(self, command=None):
@@ -2335,58 +2334,6 @@ class MusicBot(discord.Client):
             else:
                 rtn.append("{} isn't scheduled for removal".format(user.mention))
         await self.safe_send_message(channel, "\n".join(rtn))
-
-    async def cmd_rainbow(self, server, user_mentions, _, rainbow_time):
-        if not rainbow_time.isdigit():
-            return Response("Command: !rainbow @user rainbow_time_in_minutes. Didn't get time")
-        rainbow_time = int(rainbow_time)
-        if not user_mentions:
-            return Response("Command: !rainbow @user rainbow_time_in_minutes. Didn't get user")
-        member = user_mentions[0]
-        role = discord.utils.get(server.roles, name="Rainbow")
-        await self.add_roles(member, role)
-        self.scheduler.add_job(call_schedule,
-                               'date',
-                               id=self.get_id_args(self.remove_rainbow, member.id),
-                               run_date=get_next(minutes=rainbow_time),
-                               kwargs={"func": "remove_rainbow",
-                                       "arg": member.id},
-                               replace_existing=True)
-
-    async def remove_rainbow(self, member_id):
-        for server in self.servers:
-            member = discord.utils.get(server.members, id=member_id)
-            role = discord.utils.get(server.roles, name="Rainbow")
-            if member and role:
-                await self.remove_roles(member, role)
-
-    async def cycle_colours(self):
-        i = 0
-        rainbows = []
-        for server in self.servers:
-            role = discord.utils.get(server.roles, name="Rainbow")
-            if role:
-                rainbows.append((server, role))
-        while 1:
-            i += 1
-            i %= MusicBot.cycle_length
-            for rainbow in rainbows:
-                try:
-                    await self.edit_role(*rainbow, colour=self.get_colour(i))
-                except discord.errors.Forbidden:
-                    rainbows.remove(rainbow)
-                    print("Failed to add rainbow to:", *rainbow)
-                except discord.errors.HTTPException:
-                    pass
-            await asyncio.sleep(MusicBot.sleep_time)
-
-    @staticmethod
-    def get_colour(colour_id):
-        r, g, b = colorsys.hsv_to_rgb(colour_id / float(MusicBot.cycle_length), 1., 1.)
-        r = int(r*255)
-        g = int(g*255)
-        b = int(b*255)
-        return discord.Colour(r*(256**2)+g*256+b)
 
     async def on_member_join(self, member):
         embed = discord.Embed(title="Joined the server",
