@@ -1,48 +1,42 @@
+import asyncio
+import glob
+import inspect
+import json
 import os
+import shlex
 import sys
 import time
-import shlex
-import shutil
-import inspect
-import aiohttp
-import discord
-import asyncio
 import traceback
-import glob
-import colorsys
-import json
-import aiofiles
-
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
-from apscheduler import events
-
-from discord import utils
-from discord.object import Object
-from discord.enums import ChannelType, Status
-from discord.voice_client import VoiceClient
-from discord.ext.commands.bot import _get_variable
-
-from io import BytesIO
-from functools import wraps
-from textwrap import dedent
-from random import choice, shuffle
 from collections import defaultdict
 from datetime import timedelta
+from functools import wraps
+from io import BytesIO
+from random import choice, shuffle
+from textwrap import dedent
 
-from musicbot.playlist import Playlist
-from musicbot.player import MusicPlayer
+import aiofiles
+import aiohttp
+import discord
+from apscheduler import events
+from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from discord import utils
+from discord.enums import ChannelType, Status
+from discord.ext.commands.bot import _get_variable
+from discord.object import Object
+from discord.voice_client import VoiceClient
+
 from musicbot.config import Config, ConfigDefaults
-from musicbot.permissions import Permissions, PermissionsDefaults
-from musicbot.utils import load_file, write_file, sane_round_int, paginate, slugify, get_next
 from musicbot.local_song import sort_songs
-
-from . import exceptions
+from musicbot.permissions import Permissions, PermissionsDefaults
+from musicbot.player import MusicPlayer
+from musicbot.playlist import Playlist
+from musicbot.utils import load_file, write_file, sane_round_int, paginate, slugify, get_next
 from . import downloader
-from .opus_loader import load_opus_lib
+from . import exceptions
+from .constants import DISCORD_MSG_CHAR_LIMIT
 from .constants import VERSION as BOTVERSION
-from .constants import DISCORD_MSG_CHAR_LIMIT, AUDIO_CACHE_PATH
-
+from .opus_loader import load_opus_lib
 
 load_opus_lib()
 
@@ -1073,7 +1067,6 @@ class MusicBot(discord.Client):
         return Response(embed=embed, delete_after=60)
 
     async def _cmd_queue_song_list(self, player, channel, song_list):
-        f_id = defaultdict(lambda: "")
         replies = []
         for path in song_list:
             entry, position = await player.playlist.add_entry(path, channel=channel, author=None, local=os.path.exists(path))
@@ -1137,7 +1130,6 @@ class MusicBot(discord.Client):
             except Exception:
                 traceback.print_exc()
                 raise exceptions.CommandError('Error handling playlist %s queuing.' % playlist_url, expire_in=30)
-
 
         songs_processed = len(entries_added)
         drop_count = 0
@@ -1310,7 +1302,6 @@ class MusicBot(discord.Client):
                 await self.safe_delete_message(result_message)
                 await self.safe_delete_message(confirm_message)
                 await self.safe_delete_message(response_message)
-                #player, channel, author, message, permissions, leftover_args, song_url
                 return await self.cmd_play(player, channel, author, message, permissions, [], e['webpage_url'])
             else:
                 await self.safe_delete_message(result_message)
