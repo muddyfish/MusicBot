@@ -105,7 +105,6 @@ class MusicBot(discord.Client):
         super().__init__()
         self.aiosession = aiohttp.ClientSession(loop=self.loop)
         self.http.user_agent += ' MusicBot/%s' % BOTVERSION
-        self.survey_channel = None
 
     def owner_only(func):
         @wraps(func)
@@ -645,6 +644,7 @@ class MusicBot(discord.Client):
         self.scheduler.start()
         self.scheduler.print_jobs()
         self.report_channel = self.get_channel(self.config.report_channel)
+        self.survey_channel = self.get_channel("347369267869777920")
         await self.check_new_members()
 
     async def cmd_help(self, command=None):
