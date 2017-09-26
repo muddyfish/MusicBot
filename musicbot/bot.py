@@ -2205,9 +2205,11 @@ class MusicBot(discord.Client):
                 ))
         await self.safe_send_message(channel, "\n".join(rtn))
 
-    async def cmd_start_survey(self, channel, channel_mentions):
+    async def cmd_start_survey(self, channel_mentions):
+        if channel_mentions[0] == self.survey_channel:
+            return Response("There is already a survey running in this channel")
         self.survey_channel = channel_mentions[0]
-        await self.safe_send_message(channel, "Started a survey, responses will be copied to {}".format(self.survey_channel.mention))
+        return Response("Started a survey, responses will be copied to {}".format(self.survey_channel.mention))
 
     async def cmd_end_survey(self, channel):
         self.survey_channel = None
@@ -2265,18 +2267,14 @@ class MusicBot(discord.Client):
     async def on_voice_state_update(self, before, after):
         if not all([before, after]):
             return
-
         if before.voice_channel == after.voice_channel:
             return
-
         if before.server.id not in self.players:
             return
-
         my_voice_channel = after.server.me.voice_channel  # This should always work, right?
 
         if not my_voice_channel:
             return
-
         if my_voice_channel not in (before.voice_channel, after.voice_channel):
             return  # Not my channel
 
