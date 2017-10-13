@@ -2019,12 +2019,12 @@ class MusicBot(discord.Client):
         result = subprocess.run(['git', 'pull'],
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE)
+        self.should_restart = True
         embed = discord.Embed(title="Running an update",
                               description="Scheduled a restart after the queue is empty",
                               color=0x3485e7)
-        embed.add_field("Output", result.stdout)
-        embed.add_field("Errors", result.stderr)
-        self.should_restart = True
+        embed.add_field(name="Output", value=result.stdout)
+        embed.add_field(name="Errors", value=result.stderr)
         return Response(embed=embed)
 
     async def cmd_shutdown(self, channel):
