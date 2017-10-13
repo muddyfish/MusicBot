@@ -8,4 +8,5 @@ dectalk/
 discord.log
 config/options.ini
 config/permissions.ini
-/config/agreelist.json
+config/agreelist.json
+config/autoplaylist.txt
