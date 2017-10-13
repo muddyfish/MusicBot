@@ -459,10 +459,10 @@ class MusicBot(discord.Client):
         await self.change_presence(game=game)
 
     async def handle_update(self, request):
-        print(request)
+        print(await request.post())
         response = await self.cmd_update()
         await self.safe_send_message(self.report_channel,
-                                     request.content,
+                                     "",
                                      embed=response.embed)
         return web.Response(text="")
 
