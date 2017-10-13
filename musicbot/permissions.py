@@ -70,10 +70,6 @@ class Permissions:
 
         return self.default_group
 
-    def create_group(self, name, **kwargs):
-        self.config.read_dict({name: kwargs})
-        self.groups.append(PermissionGroup(name, self.config[name]))
-
 
 class PermissionGroup:
     def __init__(self, name, section_data):

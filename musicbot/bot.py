@@ -37,6 +37,7 @@ from . import exceptions
 from .constants import DISCORD_MSG_CHAR_LIMIT
 from .constants import VERSION as BOTVERSION
 from .opus_loader import load_opus_lib
+from musicbot.db import init_db, Server, User, PermissionsGroup
 
 load_opus_lib()
 
@@ -105,6 +106,17 @@ class MusicBot(discord.Client):
         super().__init__()
         self.aiosession = aiohttp.ClientSession(loop=self.loop)
         self.http.user_agent += ' MusicBot/%s' % BOTVERSION
+
+        self.db, self.session = init_db()
+        self.jobstore = SQLAlchemyJobStore(engine=self.db)
+        jobstores = {"default": self.jobstore}
+        self.scheduler = AsyncIOScheduler(jobstores=jobstores)
+        self.scheduler.add_listener(self.job_missed, events.EVENT_JOB_MISSED)
+
+        self.scheduler.start()
+        self.scheduler.print_jobs()
+
+        self.survey_channel = "347369267869777920"
 
     def owner_only(func):
         @wraps(func)
@@ -183,10 +195,7 @@ class MusicBot(discord.Client):
                 "you cannot use this command when not in the voice channel (%s)" % vc.name, expire_in=30)
 
     async def generate_invite_link(self, *, permissions=None, server=None):
-        if not self.cached_client_id:
-            self.cached_client_id = self.owner.id
-
-        return discord.utils.oauth_url(self.cached_client_id, permissions=permissions, server=server)
+        return discord.utils.oauth_url(self.user.id, permissions=permissions, server=server)
 
     async def get_voice_client(self, channel):
         if isinstance(channel, Object):
@@ -635,17 +644,175 @@ class MusicBot(discord.Client):
         if self.config.autojoin_channels:
             await self._autojoin_channels(autojoin_channels)
 
-        print()
-        self.jobstore = SQLAlchemyJobStore(url='sqlite:///jobs.sqlite')
-        jobstores = {"default": self.jobstore}
-        self.scheduler = AsyncIOScheduler(jobstores=jobstores)
-        self.scheduler.add_listener(self.job_missed, events.EVENT_JOB_MISSED)
+        await self.db_load()
 
-        self.scheduler.start()
-        self.scheduler.print_jobs()
+        print()
         self.report_channel = self.get_channel(self.config.report_channel)
         self.survey_channel = self.get_channel("347369267869777920")
         await self.check_new_members()
+
+    async def db_load(self):
+        for server in self.servers:
+            if self.get_server_db(server) is None:
+                if server.id == "365116542574395393":
+                    await self.configure_new_server(server)
+
+    def get_server_db(self, server):
+        return self.session.query(Server).filter(Server.discord_id == server.id).first()
+
+    async def configure_new_server(self, server):
+        sendable_channels = await self.get_sendable_channels(server)
+        await self.safe_send_message(sendable_channels[0],
+                                     "Hello, and thanks for deciding to use this bot.\n"
+                                     "To start off, let's choose a channel to continue the configuration process.\n"
+                                     "This bot must have both read and send message permissions in that channel.\n"
+                                     "Please reply with a mention for a channel.\n"
+                                    f"This channel would be {sendable_channels[0].mention}.\n"
+                                     "To continue, the next command requires users to have the Manage Server "
+                                     "permission.\n"
+                                     "This is to protect your server whilst we're setting up permissions.\n"
+                                     "Note that after the channel is decided, anybody with access to that channel can "
+                                     "continue setup")
+        channel = await self.get_sendable_channel(sendable_channels[0])
+        report_here = await self.ask_yn(channel,
+                                        "Ok, let's continue here, shall we?\n"
+                                        "Firstly, would it be ok to use this channel as a general report channel for "
+                                        "various things, such as automated messages, some of which might be sensitive.",
+                                        check=self.has_manage_server)
+        if report_here:
+            report_channel = channel
+        else:
+            await self.safe_send_message(channel, "Please mention a channel where I can report various things, some of "
+                                                  "which might be considered sensitive.")
+            report_channel = await self.get_sendable_channel(channel)
+            await self.safe_send_message(channel, f"Set report channel to {report_channel.mention}")
+        enable_fresh = await self.ask_yn(channel, "Do you want to enable the removal of a 'new user' role 7 days after joining the server?")
+        while not server.me.server_permissions.manage_roles and enable_fresh:
+            enable_fresh = await self.ask_yn(channel, "I need to be able to manage roles for this.\n"
+                                                      "Please give me manage  roles and select 🇾 or select 🇳 and I "
+                                                      "won't be able to do this.")
+        regular_role = fresh_role = None
+        if enable_fresh:
+            await self.safe_send_message(channel, "Now I've got to find your role for regulars.")
+            regular_role = await self.choose_role(channel)
+            await self.safe_send_message(channel, "Next is the role that new users get assigned for a week after the "
+                                                  "regular role is assigned.")
+            fresh_role = await self.choose_role(channel)
+        auto_connect = await self.ask_yn(channel, "Do you want me to automatically connect to a voice channel in case "
+                                                  "I crash and restart?")
+        connect_channel = None
+        if auto_connect:
+            connect_channel = await self.get_voice_channel(channel)
+            await self.safe_send_message(channel, f"Set autojoin channel to {connect_channel.mention}")
+        await self.safe_send_message(channel, "Please choose the maximum skip votes to pass a skip")
+        while 1:
+            message = await self.wait_for_message(channel=channel,
+                                                  check=lambda message: message.author.id != self.user.id)
+            if message.content.isdigit():
+                skip_max = int(message.content)
+                break
+            await self.safe_send_message(channel, "Please enter a number")
+        await self.safe_send_message(channel, "Please choose the skip ratio to skip otherwise. (In the form 1/3)")
+        while 1:
+            message = await self.wait_for_message(channel=channel,
+                                                  check=lambda message: message.author.id != self.user.id)
+            digits = message.content.split("/")
+            if len(digits) == 2:
+                if all(map(str.isdigit, digits)):
+                    skip_ratio_num, skip_ratio_den = map(int, digits)
+                    break
+            await self.safe_send_message(channel, "Please respond in a fractional form (1/3, 3/5 and 1/2 would all be valid)")
+
+
+
+    async def choose_role(self, channel):
+        await self.safe_send_message(channel, "Either mention a role or type the name of a role.")
+        while True:
+            message = await self.wait_for_message(channel=channel,
+                                                  check=lambda message: message.author.id != self.user.id)
+            if len(message.mentions) == 1:
+                return message.mentions[0]
+            elif len(message.mentions) == 0:
+                roles = []
+                for server_role in channel.server.roles:
+                    if server_role.name.lower() == message.content.lower():
+                        roles.append(server_role)
+
+                if len(roles) == 1:
+                    return roles[0]
+                elif len(roles) >= 2:
+                    message = await self.safe_send_message(channel,
+                                                           "Multiple roles were found with that name.\n"
+                                                           "Please move the role you wish to be the regular role below the rest.\n"
+                                                           "You may return the role to it's original position later\n"
+                                                           "Once you are happy, react with 🇾")
+                    await self.add_reaction(message, "🇾")
+                    await self.wait_for_reaction("🇾",
+                                                 message=message,
+                                                 check=lambda reaction, user: user.id != self.user.id)
+                    return max(roles, key=lambda role: role.position)
+                else:
+                    await self.safe_send_message(channel, "No roles were found with that name.")
+            else:
+                await self.safe_send_message(channel, "You mentioned multiple roles. Please only mention a single role "
+                                                      "or a name of a role.")
+
+    async def get_sendable_channel(self, current):
+        is_valid = False
+        while not is_valid:
+            mentions = []
+            while len(mentions) != 1:
+                message = await self.wait_for_message(channel=current,
+                                                      check=lambda message: self.has_manage_server(message.author))
+                mentions = message.channel_mentions
+                if len(mentions) != 1:
+                    await self.safe_send_message(current, "Please mention a single channel to continue setup")
+            channel = mentions[0]
+            if channel not in (await self.get_sendable_channels(current.server)):
+                await self.send_message(current, f"I cannot read and send messages in {channel.mention}")
+            else:
+                is_valid = True
+        return channel
+
+    async def get_voice_channel(self, current):
+        def verify_channel(reaction, user):
+            if user.id == self.user.id:
+                return False
+            channel = user.voice_channel
+            if not channel:
+                asyncio.ensure_future(self.send_message(current, "Please remove your reaction, connect to a voice "
+                                                                 "channel and then add it again."))
+                return False
+            permissions = channel.permissions_for(current.server.me)
+            if permissions.connect and permissions.speak:
+                return True
+            asyncio.ensure_future(self.send_message(current, f"I cannot connect and speak in {channel.mention}.\n"
+                                                             f"Please remove your reaction and move to a channel I can "
+                                                             f"connect and speak"))
+            return False
+
+        message = await self.send_message(current, "Please join the voice channel you to select. I must have connect "
+                                                   "and speak permissions in that channel. Once you're done, react "
+                                                   "with 🇾")
+        await self.add_reaction(message, "🇾")
+        react, user = await self.wait_for_reaction("🇾",
+                                                   message=message,
+                                                   check=verify_channel)
+        return user.voice_channel
+
+    async def get_sendable_channels(self, server):
+        sendable_channels = []
+        for channel in server.channels:
+            if channel.type == discord.ChannelType.text:
+                permissions = channel.permissions_for(server.me)
+                if permissions.send_messages and permissions.read_messages:
+                    sendable_channels.append(channel)
+        return sendable_channels
+
+    def has_manage_server(self, user):
+        if user.id == self.user.id:
+            return False
+        return user.server_permissions.manage_server
 
     async def cmd_help(self, command=None):
         """
@@ -955,7 +1122,7 @@ class MusicBot(discord.Client):
 
         return Response(reply_text, delete_after=30)
 
-    async def cmd_play_local(self, player, channel, path):
+    async def cmd_play_local(self, player, author, channel, path):
         """
         Usage: Play a file or files given a local path.
         Expands wildcards.
@@ -963,24 +1130,24 @@ class MusicBot(discord.Client):
         files = [path]
         if "*" in path:
             files = glob.glob(path, recursive=True)
-        return await self._cmd_queue_song_list(player, channel, files)
+        return await self._cmd_queue_song_list(player, author, channel, files)
 
-    async def cmd_awsw(self, player, channel, song_id):
+    async def cmd_awsw(self, player, author, channel, song_id):
         if not song_id.isdigit():
             return Response("Must be the soundtrack number (44 - Spring).")
         files = glob.glob("./music/AWSW/{}.*".format(song_id))
         if not files:
             return Response("No file found with that id")
-        return await self._cmd_queue_song_list(player, channel, files)
+        return await self._cmd_queue_song_list(player, author, channel, files)
 
-    async def cmd_queue_playlist(self, player, channel, path):
+    async def cmd_queue_playlist(self, player, author, channel, path):
         """
         Usage: Add a predefined playlist to the queue.
         """
         safe_path = slugify(path)
         playlist = load_file(os.path.join("playlists", safe_path+".txt"))
         song_urls = self.parse_playlist(playlist)
-        return await self._cmd_queue_song_list(player, channel, song_urls)
+        return await self._cmd_queue_song_list(player, author, channel, song_urls)
 
     async def cmd_get_playlists(self, path=None):
         """
@@ -995,10 +1162,9 @@ class MusicBot(discord.Client):
         song_urls = [os.path.split(path)[-1] for path in self.parse_playlist(playlist)]
         return Response("\n".join(song_urls), delete_after=35)
 
-    async def cmd_add_playlist(self, player, channel, author, playlist):
+    async def cmd_create_playlist_search(self, player, channel, author, playlist):
         name, *songs = playlist.split("\n")
         name = slugify(name)
-        print(name)
         urls = []
         for search_term in songs:
             search_query = 'ytsearch10:{}'.format(search_term)
@@ -1039,7 +1205,7 @@ class MusicBot(discord.Client):
         write_file(os.path.join("playlists", name+".txt"), urls)
         await self.safe_send_message(channel, "Added playlist and saved as {}".format(name))
 
-    async def cmd_add_playlist_urls(self, channel, playlist):
+    async def cmd_create_playlist_urls(self, channel, playlist):
         name, *urls = playlist.split("\n")
         name = slugify(name)
         write_file(os.path.join("playlists", name+".txt"), urls)
@@ -1579,51 +1745,38 @@ class MusicBot(discord.Client):
         if player.current_entry:
             song_progress = str(timedelta(seconds=player.progress)).lstrip('0').lstrip(':')
             song_total = str(timedelta(seconds=player.current_entry.duration)).lstrip('0').lstrip(':')
-            prog_str = '`[%s/%s]`' % (song_progress, song_total)
+            prog_str = f"[{song_progress}/{song_total}]"
             if hasattr(player.current_entry, "url"):
-                name = "[{}]({})".format(player.current_entry.title,
-                                         getattr(player.current_entry, "url", ""))
+                name = f"[{player.current_entry.title}]({player.current_entry.url})"
             else:
                 name = player.current_entry.title
             if player.current_entry.meta.get('channel', False) and player.current_entry.meta.get('author', False):
-                lines.append("Now Playing: **%s** added by **%s** %s\n" % (
-                    name,
-                    player.current_entry.meta['author'].name,
-                    prog_str))
+                lines.append(f"Now Playing: **{name}** added by **{player.current_entry.meta['author'].name}** {prog_str}\n")
             else:
-                lines.append("Now Playing: **%s** %s\n" % (name, prog_str))
-
+                lines.append(f"Now Playing: **{name}** {prog_str}\n")
         for i, item in enumerate(player.playlist, 1):
             if hasattr(item, "url"):
-                name = "[{}]({})".format(item.title,
-                                         getattr(item, "url", ""))
+                name = f"[{item.title}]({item.url})"
             else:
                 name = item.title
             song_total = str(timedelta(seconds=item.duration)).lstrip('0').lstrip(':')
             if item.meta.get('channel', False) and item.meta.get('author', False):
-                nextline = '`{}.` **{}** added by **{}** [{}]'.format(i,
-                                                                      name,
-                                                                      item.meta['author'].name,
-                                                                      song_total).strip()
+                nextline = f"{i}. **{name}** added by **{item.meta['author'].name}** [{song_total}]".strip()
             else:
-                nextline = '`{}.` **{}** [{}]'.format(i,
-                                                      name,
-                                                      song_total).strip()
+                nextline = f"{i}. **{name}** [{song_total}]".strip()
 
             currentlinesum = sum(len(x) + 1 for x in lines)  # +1 is for newline char
 
             if currentlinesum + len(nextline) + len(andmoretext) > DISCORD_MSG_CHAR_LIMIT:
                 unlisted += 1
-                continue
-
-            lines.append(nextline)
+            else:
+                lines.append(nextline)
 
         if unlisted:
-            lines.append('\n*... and %s more*' % unlisted)
+            lines.append(f"\n*... and {unlisted} more*")
 
         if not lines:
-            lines.append(
-                'There are no songs queued! Queue something with {}play.'.format(self.config.command_prefix))
+            lines.append(f"There are no songs queued! Queue something with `{self.config.command_prefix}play`")
 
         embed = discord.Embed(title="Queue",
                               description="\n".join(lines),
@@ -1634,7 +1787,7 @@ class MusicBot(discord.Client):
         try:
             remove_id = int(remove_id, 0)
         except:
-            return Response("Enter a number.  NUMBER.  That means digits.  `15`.  Etc.",
+            return Response("Enter a number. NUMBER. That means digits. `15`. Etc.",
                             reply=True,
                             delete_after=8)
         if remove_id > len(player.playlist.entries):
@@ -1647,7 +1800,7 @@ class MusicBot(discord.Client):
                             delete_after=10)
         entry = player.playlist.entries[remove_id-1]
         del player.playlist.entries[remove_id-1]
-        return Response("Removed `{}` from the queue.".format(entry.title.replace("`", "")))
+        return Response(f"Removed `{entry.title.replace('`', '')}` from the queue.")
 
     async def cmd_clean(self, message, channel, server, author, search_range=50):
         """
@@ -1680,7 +1833,7 @@ class MusicBot(discord.Client):
 
         if channel.permissions_for(server.me).manage_messages:
             deleted = await self.purge_from(channel, check=check, limit=search_range, before=message)
-            return Response('Cleaned up {} message{}.'.format(len(deleted), 's' * bool(deleted)), delete_after=15)
+            return Response(f"Cleaned up {len(deleted)} message{'s' if deleted else ''}.", delete_after=15)
 
         deleted = 0
         async for entry in self.logs_from(channel, search_range, before=message):
@@ -2226,20 +2379,23 @@ class MusicBot(discord.Client):
         await self.safe_send_message(channel, "Stopped all surveys")
 
     async def handle_survey(self, user, channel, message_content):
-        message = await self.safe_send_message(channel, "Do you want your username to be visible to staff?\n"
-                                                        "Your feedback will not be sent until a reaction is added")
-        await self.add_reaction(message, "🇾")
-        await self.add_reaction(message, "🇳")
-        react = await self.wait_for_reaction(["🇾", "🇳"],
-                                             message=message,
-                                             user=user)
-        copy_user = react.reaction.emoji == "🇾"
-        if copy_user:
+        if await self.ask_yn(channel,
+                             "Do you want your username to be visible to staff?\n"
+                             "Your feedback will not be sent until a reaction is added"):
             message_content = user.mention + "`~~~`" + message_content
         else:
             message_content = "`~~~`" + message_content
         await self.safe_send_message(self.survey_channel, message_content)
         await self.safe_send_message(channel, "Your feedback was sent")
+
+    async def ask_yn(self, channel, question, check=lambda message: True):
+        message = await self.safe_send_message(channel, question)
+        await self.add_reaction(message, "🇾")
+        await self.add_reaction(message, "🇳")
+        react = await self.wait_for_reaction(["🇾", "🇳"],
+                                             message=message,
+                                             check=lambda reaction, user: check(user) and user.id != self.user.id)
+        return react.reaction.emoji == "🇾"
 
     async def cmd_unschedule(self, channel, message):
         rtn = []

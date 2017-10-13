@@ -9,7 +9,7 @@ RUN sudo apt-get update \
     && sudo add-apt-repository ppa:mc3man/trusty-media -y \
     && sudo apt-get update -y \
     && sudo apt-get install build-essential unzip -y \
-    && sudo apt-get install python3.5 python3.5-dev -y \
+    && sudo apt-get install python3.6 python3.6-dev -y \
     && sudo apt-get install ffmpeg -y \
     && sudo apt-get install libopus-dev -y \
     && sudo apt-get install libffi-dev -y
@@ -17,7 +17,7 @@ RUN sudo apt-get update \
 #Install Pip
 RUN sudo apt-get install wget \
     && wget https://bootstrap.pypa.io/get-pip.py \
-    && sudo python3.5 get-pip.py
+    && sudo python3.6 get-pip.py
 
 #Add musicBot
 ADD . /musicBot
@@ -29,4 +29,4 @@ RUN sudo pip install -r requirements.txt
 #Add volume for configuration
 VOLUME /musicBot/config
 
-CMD python3.5 run.py
+CMD python3.6 run.py

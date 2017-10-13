@@ -168,27 +168,6 @@ def main():
             traceback.print_exc()
             break
 
-        except ImportError as e:
-            if not tried_requirementstxt:
-                tried_requirementstxt = True
-
-                # TODO: Better output
-                print(e)
-                print("Attempting to install dependencies...")
-
-                err = PIP.run_install('--upgrade -r requirements.txt')
-
-                if err:
-                    print("\nYou may need to %s to install dependencies." %
-                          ['use sudo', 'run as admin'][sys.platform.startswith('win')])
-                    break
-                else:
-                    print("\nOk lets hope it worked\n")
-            else:
-                traceback.print_exc()
-                print("Unknown ImportError, exiting.")
-                break
-
         except Exception as e:
             if hasattr(e, '__module__') and e.__module__ == 'musicbot.exceptions':
                 if e.__class__.__name__ == 'HelpfulError':

@@ -89,6 +89,8 @@ class Playlist(EventEmitter):
             self.downloader.ytdl.prepare_filename(info),
             **meta
         )
+        if info['extractor'] == "generic":
+            entry._download()
         self._add_entry(entry)
         return entry, len(self.entries)
 
