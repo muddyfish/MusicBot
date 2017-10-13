@@ -2027,8 +2027,8 @@ class MusicBot(discord.Client):
         embed = discord.Embed(title="Running an update",
                               description=description,
                               color=0x3485e7)
-        embed.add_field(name="Output", value=result.stdout.decode("utf-8"), inline=True)
-        embed.add_field(name="Errors", value=result.stderr.decode("utf-8"), inline=True)
+        embed.add_field(name="Output", value=result.stdout.decode("ascii"), inline=True)
+        embed.add_field(name="Errors", value=result.stderr.decode("ascii"), inline=True)
         return Response(embed=embed)
 
     async def cmd_shutdown(self, channel):
