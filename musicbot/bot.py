@@ -480,11 +480,11 @@ class MusicBot(discord.Client):
 
         except discord.Forbidden:
             if not quiet:
-                self.safe_print("Warning: Cannot send message to %s, no permission" % dest.name)
+                self.safe_print(f"Warning: Cannot send message to {dest.name}, no permission")
 
         except discord.NotFound:
             if not quiet:
-                self.safe_print("Warning: Cannot send message to %s, invalid channel?" % dest.name)
+                self.safe_print(f"Warning: Cannot send message to {dest.name}, invalid channel?")
 
         return msg
 
@@ -494,11 +494,11 @@ class MusicBot(discord.Client):
 
         except discord.Forbidden:
             if not quiet:
-                self.safe_print("Warning: Cannot delete message \"%s\", no permission" % message.clean_content)
+                self.safe_print(f"Warning: Cannot delete message \"{message.clean_content}\", no permission")
 
         except discord.NotFound:
             if not quiet:
-                self.safe_print("Warning: Cannot delete message \"%s\", message not found" % message.clean_content)
+                self.safe_print(f"Warning: Cannot delete message \"{message.clean_content}\", message not found")
 
     async def safe_edit_message(self, message, new, *, send_if_fail=False, quiet=False):
         try:
@@ -506,7 +506,7 @@ class MusicBot(discord.Client):
 
         except discord.NotFound:
             if not quiet:
-                self.safe_print("Warning: Cannot edit message \"%s\", message not found" % message.clean_content)
+                self.safe_print(f"Warning: Cannot edit message \"{message.clean_content}\", message not found")
             if send_if_fail:
                 if not quiet:
                     print("Sending instead")
@@ -601,10 +601,10 @@ class MusicBot(discord.Client):
 
     async def on_ready(self):
         self.init_ok = True
-        print('\rConnected!  Musicbot v%s\n' % BOTVERSION)
-        self.safe_print("Bot:   %s/%s#%s" % (self.user.id, self.user.name, self.user.discriminator))
+        print(f'\rConnected!  Musicbot v{BOTVERSION}\n')
+        self.safe_print(f"Bot:   {self.user.id}/{self.user.name}#{self.user.discriminator}")
         self.owner = await self.get_owner()
-        self.safe_print("Owner: %s/%s#%s\n" % (self.owner.id, self.owner.name, self.owner.discriminator))
+        self.safe_print(f"Owner: {self.owner.id}/{self.owner.name}#{self.owner.discriminator}\n")
 
         print('Server List:')
         for s in self.servers:
@@ -622,7 +622,9 @@ class MusicBot(discord.Client):
             self.config.bound_channels.difference_update(invalids)
 
             print("Bound to text channels:")
-            [self.safe_print(' - %s/%s' % (ch.server.name.strip(), ch.name.strip())) for ch in chlist if ch]
+            for ch in chlist:
+                if ch:
+                    self.safe_print(f' - {ch.server.name.strip()}/{ch.name.strip()}')
 
             if invalids and self.config.debug_mode:
                 print("\nNot binding to voice channels:")
