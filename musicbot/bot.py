@@ -108,7 +108,8 @@ class MusicBot(discord.Client):
         self.http.user_agent += ' MusicBot/%s' % BOTVERSION
 
         self.db, self.session = init_db()
-        self.jobstore = SQLAlchemyJobStore(engine=self.db)
+        #self.jobstore = SQLAlchemyJobStore(engine=self.db)
+        self.jobstore = SQLAlchemyJobStore(url='sqlite:///jobs.sqlite')
         jobstores = {"default": self.jobstore}
         self.scheduler = AsyncIOScheduler(jobstores=jobstores)
         self.scheduler.add_listener(self.job_missed, events.EVENT_JOB_MISSED)
