@@ -89,8 +89,8 @@ class Playlist(EventEmitter):
             self.downloader.ytdl.prepare_filename(info),
             **meta
         )
-        if info['extractor'] == "generic":
-            entry._download()
+        if info.get('duration', 0) or 0 == 0:
+            await entry._download()
         self._add_entry(entry)
         return entry, len(self.entries)
 
