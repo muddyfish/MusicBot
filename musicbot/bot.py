@@ -411,7 +411,8 @@ class MusicBot(discord.Client):
     async def on_player_finished_playing(self, player, **_):
         if not player.playlist.entries and not player.current_entry:
             if self.should_restart:
-                await self.send_message("Restarting now. If I don't come back soon, I'm ded and ping Blue :3")
+                await self.send_message(self.report_channel,
+                                        "Restarting now. If I don't come back soon, I'm ded and ping Blue :3")
                 raise exceptions.RestartSignal
             autoplaylist = self.server_specific_data[player.voice_client.channel.server]["autoplaylist"]
             if not autoplaylist:
