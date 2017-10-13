@@ -2014,8 +2014,9 @@ class MusicBot(discord.Client):
         await self.disconnect_all_voice_clients()
         raise exceptions.RestartSignal
 
-    async def cmd_delayed_restart(self, channel):
+    async def cmd_update(self, channel):
         await self.safe_send_message(channel, "Sheduled a restart after the queue is empty")
+        os.system("git pull")
         self.should_restart = True
 
     async def cmd_shutdown(self, channel):
