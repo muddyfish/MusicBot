@@ -10,3 +10,7 @@ config/options.ini
 config/permissions.ini
 config/agreelist.json
 config/autoplaylist.txt
+
+playlists/
+*.sqlite
+*.db
