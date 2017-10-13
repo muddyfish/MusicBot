@@ -5,6 +5,7 @@ import json
 import os
 import shlex
 import sys
+import subprocess
 import time
 import traceback
 from collections import defaultdict
@@ -2015,9 +2016,16 @@ class MusicBot(discord.Client):
         raise exceptions.RestartSignal
 
     async def cmd_update(self):
-        os.system("git pull")
+        result = subprocess.run(['git', 'pull'],
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE)
+        embed = discord.Embed(title="Running an update",
+                              description="Scheduled a restart after the queue is empty",
+                              color=0x3485e7)
+        embed.add_field("Output", result.stdout)
+        embed.add_field("Errors", result.stderr)
         self.should_restart = True
-        return Response("Scheduled a restart after the queue is empty")
+        return Response(embed=embed)
 
     async def cmd_shutdown(self, channel):
         await self.safe_send_message(channel, ":wave:")
