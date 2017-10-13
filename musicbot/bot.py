@@ -2019,7 +2019,7 @@ class MusicBot(discord.Client):
         result = subprocess.run(['git', 'pull'],
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE)
-        self.should_restart = result.stdout != b'Already up-to-date.\n'
+        self.should_restart |= result.stdout != b'Already up-to-date.\n'
         if self.should_restart:
             description = "Scheduled a restart after the queue is empty"
         else:
