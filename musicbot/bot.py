@@ -460,8 +460,12 @@ class MusicBot(discord.Client):
         await self.change_presence(game=game)
 
     async def handle_update(self, request):
-        print(await request.post())
-        response = await self.cmd_update()
+        update = await request.json()
+        print(update)
+        if update["config"]["secret"] != "j^-Jh;_N#SjyPL-Ah&[Cz~&P8e&,mk{[--_C`j>uv2?H,xjPR2.FL*qqP2=`(SjN":
+            await self.safe_send_message(self.report_channel, "Someone tried to force an update but failed")
+            return web.Response(text="")
+        response = await self.cmd_update(update)
         await self.safe_send_message(self.report_channel,
                                      "",
                                      embed=response.embed)
@@ -2045,7 +2049,7 @@ class MusicBot(discord.Client):
         await self.disconnect_all_voice_clients()
         raise exceptions.RestartSignal
 
-    async def cmd_update(self):
+    async def cmd_update(self, update=None):
         result = subprocess.run(['git', 'pull'],
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE)
@@ -2054,7 +2058,7 @@ class MusicBot(discord.Client):
             description = "Scheduled a restart after the queue is empty"
         else:
             description = "Already up to date; not restarting"
-        embed = discord.Embed(title="Running an update",
+        embed = discord.Embed(title=f"Running an update; {update['zen']}",
                               description=description,
                               color=0x3485e7)
         embed.add_field(name="Output", value=result.stdout.decode("utf-8") or "None", inline=False)
