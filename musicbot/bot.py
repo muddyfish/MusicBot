@@ -2050,6 +2050,9 @@ class MusicBot(discord.Client):
         raise exceptions.RestartSignal
 
     async def cmd_update(self, update=None):
+        if update is None:
+            update = {"zen": "",
+                      "commits": [{"message": "Manually triggered"}]}
         result = subprocess.run(['git', 'pull'],
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE)
@@ -2063,6 +2066,7 @@ class MusicBot(discord.Client):
                               color=0x3485e7)
         embed.add_field(name="Output", value=result.stdout.decode("utf-8") or "None", inline=False)
         embed.add_field(name="Errors", value=result.stderr.decode("utf-8") or "None", inline=False)
+        embed.add_field(name="Message", value="\n".join(commit["message"] for commit in update["commits"]), inline=False)
         return Response(embed=embed)
 
     async def cmd_shutdown(self, channel):
