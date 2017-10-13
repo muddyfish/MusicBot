@@ -121,11 +121,11 @@ class MusicBot(discord.Client):
         self.scheduler.start()
         self.scheduler.print_jobs()
 
-        self.survey_channel = "347369267869777920"
         self.should_restart = False
 
         self.app = web.Application()
         self.app.router.add_post('/update', self.handle_update)
+        self.app.router.add_get('/update', self.handle_update)
         self.handler = self.app.make_handler()
         self.web_server = self.loop.create_server(self.handler,
                                                   MusicBot.host,
@@ -465,7 +465,6 @@ class MusicBot(discord.Client):
                                      request.content,
                                      embed=response.embed)
 
-
     async def safe_send_message(self, dest, content=None, *, embed=None, tts=False, expire_in=0, also_delete=None, quiet=False):
         msg = None
         try:
@@ -677,11 +676,12 @@ class MusicBot(discord.Client):
         if self.config.autojoin_channels:
             await self._autojoin_channels(autojoin_channels)
 
-        await self.db_load()
+        #await self.db_load()
 
         print()
         self.report_channel = self.get_channel(self.config.report_channel)
         self.survey_channel = self.get_channel("347369267869777920")
+        print("Setup report channel to:", self.report_channel)
         await self.check_new_members()
 
     async def db_load(self):
