@@ -17,6 +17,7 @@ from textwrap import dedent
 
 import aiofiles
 import aiohttp
+from aiohttp import web
 import discord
 from apscheduler import events
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
@@ -73,6 +74,8 @@ class Response:
 class MusicBot(discord.Client):
     cycle_length = 100
     sleep_time = 0.1
+    host = "127.0.0.1"
+    port = 5002
 
     def __init__(self, config_file=ConfigDefaults.options_file, perms_file=PermissionsDefaults.perms_file, agreelist_file=ConfigDefaults.agreelist_file):
         MusicBot.bot = self
@@ -120,6 +123,16 @@ class MusicBot(discord.Client):
 
         self.survey_channel = "347369267869777920"
         self.should_restart = False
+
+        self.app = web.Application()
+        self.app.router.add_post('/update', self.handle_update)
+        self.handler = self.app.make_handler()
+        self.web_server = self.loop.create_server(self.handler,
+                                                  MusicBot.host,
+                                                  MusicBot.port)
+        self.srv, startup_res = self.loop.run_until_complete(asyncio.gather(self.web_server,
+                                                             self.app.startup(),
+                                                             loop=self.loop))
 
     def owner_only(func):
         @wraps(func)
@@ -445,6 +458,14 @@ class MusicBot(discord.Client):
 
         await self.change_presence(game=game)
 
+    async def handle_update(self, request):
+        print(request)
+        response = await self.cmd_update()
+        await self.safe_send_message(self.report_channel,
+                                     request.content,
+                                     embed=response.embed)
+
+
     async def safe_send_message(self, dest, content=None, *, embed=None, tts=False, expire_in=0, also_delete=None, quiet=False):
         msg = None
         try:
@@ -510,6 +531,12 @@ class MusicBot(discord.Client):
             self.loop.run_until_complete(self.logout())
         except:
             pass
+
+        self.srv.close()
+        self.loop.run_until_complete(self.srv.wait_closed())
+        self.loop.run_until_complete(self.app.shutdown())
+        self.loop.run_until_complete(self.handler.finish_connections(60.0))
+        self.loop.run_until_complete(self.app.cleanup())
 
         pending = asyncio.Task.all_tasks()
         gathered = asyncio.gather(*pending)
