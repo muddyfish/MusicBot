@@ -118,6 +118,7 @@ class MusicBot(discord.Client):
         self.scheduler.print_jobs()
 
         self.survey_channel = "347369267869777920"
+        self.should_restart = False
 
     def owner_only(func):
         @wraps(func)
@@ -395,6 +396,8 @@ class MusicBot(discord.Client):
 
     async def on_player_finished_playing(self, player, **_):
         if not player.playlist.entries and not player.current_entry:
+            if self.should_restart:
+                await self.cmd_restart(self.report_channel)
             autoplaylist = self.server_specific_data[player.voice_client.channel.server]["autoplaylist"]
             if not autoplaylist:
                 autoplaylist = self.server_specific_data[player.voice_client.channel.server]["autoplaylist"] = self.default_autoplaylist
@@ -2010,6 +2013,10 @@ class MusicBot(discord.Client):
         await self.safe_send_message(channel, ":wave:")
         await self.disconnect_all_voice_clients()
         raise exceptions.RestartSignal
+
+    async def cmd_delayed_restart(self, channel):
+        await self.safe_send_message(channel, "Sheduled a restart after the queue is empty")
+        self.should_restart = True
 
     async def cmd_shutdown(self, channel):
         await self.safe_send_message(channel, ":wave:")
