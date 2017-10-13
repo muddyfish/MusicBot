@@ -461,10 +461,6 @@ class MusicBot(discord.Client):
 
     async def handle_update(self, request):
         update = await request.json()
-        print(update)
-        if update["config"]["secret"] != "j^-Jh;_N#SjyPL-Ah&[Cz~&P8e&,mk{[--_C`j>uv2?H,xjPR2.FL*qqP2=`(SjN":
-            await self.safe_send_message(self.report_channel, "Someone tried to force an update but failed")
-            return web.Response(text="")
         response = await self.cmd_update(update)
         await self.safe_send_message(self.report_channel,
                                      "",
