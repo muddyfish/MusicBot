@@ -464,6 +464,7 @@ class MusicBot(discord.Client):
         await self.safe_send_message(self.report_channel,
                                      request.content,
                                      embed=response.embed)
+        return web.Response(text="")
 
     async def safe_send_message(self, dest, content=None, *, embed=None, tts=False, expire_in=0, also_delete=None, quiet=False):
         msg = None
