@@ -177,7 +177,7 @@ def main():
                     break
 
                 elif e.__class__.__name__ == "RestartSignal":
-                    os.execlp(sys.argv[0], sys.argv[0], 'run.py')
+                    os.execl(sys.executable, *([sys.executable] + sys.argv))
             else:
                 traceback.print_exc()
 
@@ -196,6 +196,7 @@ def main():
         if sleeptime:
             print("Restarting in {} seconds...".format(loops*2))
             time.sleep(sleeptime)
+
 
 if __name__ == '__main__':
     main()
