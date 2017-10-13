@@ -398,7 +398,7 @@ class MusicBot(discord.Client):
     async def on_player_finished_playing(self, player, **_):
         if not player.playlist.entries and not player.current_entry:
             if self.should_restart:
-                await self.cmd_restart(self.report_channel)
+                raise exceptions.RestartSignal
             autoplaylist = self.server_specific_data[player.voice_client.channel.server]["autoplaylist"]
             if not autoplaylist:
                 autoplaylist = self.server_specific_data[player.voice_client.channel.server]["autoplaylist"] = self.default_autoplaylist

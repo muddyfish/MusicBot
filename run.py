@@ -104,8 +104,8 @@ class PIP(object):
 
 def main():
     if not sys.version_info >= (3, 5):
-        print("Python 3.5+ is required. This version is %s" % sys.version.split()[0])
-        print("Attempting to locate python 3.5...")
+        print("Python 3.6+ is required. This version is %s" % sys.version.split()[0])
+        print("Attempting to locate python 3.6...")
 
         pycom = None
 
@@ -113,8 +113,8 @@ def main():
 
         if sys.platform.startswith('win'):
             try:
-                subprocess.check_output('py -3.5 -c "exit()"', shell=True)
-                pycom = 'py -3.5'
+                subprocess.check_output('py -3.6 -c "exit()"', shell=True)
+                pycom = 'py -3.6'
             except:
 
                 try:
@@ -130,7 +130,7 @@ def main():
 
         else:
             try:
-                pycom = subprocess.check_output(['which', 'python3.5']).strip().decode()
+                pycom = subprocess.check_output(['which', 'python3.6']).strip().decode()
             except:
                 pass
 
@@ -140,14 +140,13 @@ def main():
 
                 os.execlp(pycom, pycom, 'run.py')
 
-        print("Please run the bot using python 3.5")
+        print("Please run the bot using python 3.6")
         input("Press enter to continue . . .")
 
         return
 
     import asyncio
 
-    tried_requirementstxt = False
     tryagain = True
 
     loops = 0
@@ -178,7 +177,7 @@ def main():
                     break
 
                 elif e.__class__.__name__ == "RestartSignal":
-                    loops = -1
+                    os.execlp(sys.argv[0], sys.argv[0], 'run.py')
             else:
                 traceback.print_exc()
 
@@ -197,7 +196,6 @@ def main():
         if sleeptime:
             print("Restarting in {} seconds...".format(loops*2))
             time.sleep(sleeptime)
-
 
 if __name__ == '__main__':
     main()
