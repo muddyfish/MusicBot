@@ -2047,8 +2047,7 @@ class MusicBot(discord.Client):
 
     async def cmd_update(self, update=None):
         if update is None:
-            update = {"zen": "",
-                      "commits": [{"message": "Manually triggered"}]}
+            update = {"commits": [{"message": "Manually triggered"}]}
         result = subprocess.run(['git', 'pull'],
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE)
@@ -2057,7 +2056,7 @@ class MusicBot(discord.Client):
             description = "Scheduled a restart after the queue is empty"
         else:
             description = "Already up to date; not restarting"
-        embed = discord.Embed(title=f"Running an update; {update['zen']}",
+        embed = discord.Embed(title=f"Running an update",
                               description=description,
                               color=0x3485e7)
         embed.add_field(name="Output", value=result.stdout.decode("utf-8") or "None", inline=False)
