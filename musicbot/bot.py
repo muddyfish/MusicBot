@@ -426,8 +426,10 @@ class MusicBot(discord.Client):
                 song_url = choice(autoplaylist)
                 local = not song_url.startswith("http")
                 if not local:
-                    info = self.downloader.safe_extract_info(player.playlist.loop, song_url, download=False,
-                                                             process=False)
+                    info = await self.downloader.safe_extract_info(player.playlist.loop,
+                                                                   song_url,
+                                                                   download=False,
+                                                                   process=False)
                     if not info:
                         self.safe_print("[Info] Skipping {}".format(song_url))
                         done = False
