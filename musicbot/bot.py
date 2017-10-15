@@ -685,7 +685,6 @@ class MusicBot(discord.Client):
         if self.config.autojoin_channels:
             await self._autojoin_channels(autojoin_channels)
 
-        self.should_restart = True
         #await self.db_load()
 
         await self.check_new_members()
