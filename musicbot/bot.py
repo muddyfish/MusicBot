@@ -685,7 +685,7 @@ class MusicBot(discord.Client):
         if self.config.autojoin_channels:
             await self._autojoin_channels(autojoin_channels)
 
-        #await self.db_load()
+        await self.db_load()
 
         await self.check_new_members()
 
@@ -758,8 +758,33 @@ class MusicBot(discord.Client):
             if len(digits) == 2:
                 if all(map(str.isdigit, digits)):
                     skip_ratio_num, skip_ratio_den = map(int, digits)
-                    break
-            await self.safe_send_message(channel, "Please respond in a fractional form (1/3, 3/5 and 1/2 would all be valid)")
+                    if skip_ratio_num / skip_ratio_den < 1:
+                        break
+            await self.safe_send_message(channel, "Please respond in a fractional form (1/3, 3/5 and 1/2 would all be valid. 4/3, 2/2 are not.)")
+        files = [os.path.split(path)[-1][:-4] for path in glob.glob(os.path.join("playlists", "*.txt"))]
+        files = files[:19]
+        emotes = ['0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'[i]+"\u20E3" if i<10 else chr(i+127452) for i in range(36)]
+        joined_files = "\n".join(f"{emotes[i]}: {f}" for i, f in enumerate(["No autoplaylist"] + files))
+        message = await self.safe_send_message(channel, "I come with a couple built-in playlists.\n"
+                                                        "Please react with the one you want to use by default:\n"
+                                                       f"{joined_files}")
+        for i in range(len(files)+1):
+            await self.add_reaction(message, f"{emotes[i]}")
+        react, user = await self.wait_for_reaction([emotes[i] for i in range(len(files)+1)],
+                                                     message=message,
+                                                     check=lambda reaction, user: user.id != self.user.id)
+        index = emotes.index(react.emoji)
+        autoplaylist = None
+        if index:
+            autoplaylist = files[index-1]
+        await self.safe_send_message(channel, "Please choose the prefix for commands (one character)")
+        while 1:
+            message = await self.wait_for_message(channel=channel,
+                                                  check=lambda message: message.author.id != self.user.id)
+            if len(message.content) == 1:
+                prefix = message.content
+                break
+            await self.safe_send_message(channel, "Please enter a single character")
 
 
 
@@ -1270,10 +1295,13 @@ class MusicBot(discord.Client):
                               colour=0x3485e7)
         return Response(embed=embed, delete_after=60)
 
-    async def _cmd_queue_song_list(self, player, channel, song_list):
+    async def _cmd_queue_song_list(self, player, author, channel, song_list):
         replies = []
         for path in song_list:
-            entry, position = await player.playlist.add_entry(path, channel=channel, author=None, local=os.path.exists(path))
+            entry, position = await player.playlist.add_entry(path,
+                                                              channel=channel,
+                                                              author=author,
+                                                              local=os.path.exists(path))
 
             song_text = "Enqueued **%s** to be played. Position in queue: %s"
             btext = entry.title

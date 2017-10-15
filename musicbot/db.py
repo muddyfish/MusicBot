@@ -43,6 +43,7 @@ class Server(Base):
     volume = Column(Float)
     max_skips = Column(Integer)
     ratio = Column(Float)
+    autoplaylist = Column(String)
 
     command_prefix = Column(String)
 
