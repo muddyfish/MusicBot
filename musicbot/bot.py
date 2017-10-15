@@ -676,18 +676,18 @@ class MusicBot(discord.Client):
         print("  Downloaded songs will be %s" % ['deleted', 'saved'][self.config.save_videos])
         print()
 
-        # maybe option to leave the ownerid blank and generate a random command for the owner to use
-        # wait_for_message is pretty neato
+        self.report_channel = self.get_channel(self.config.report_channel)
+        self.survey_channel = self.get_channel("347369267869777920")
+
+        print()
+        print("Setup report channel to:", self.report_channel)
 
         if self.config.autojoin_channels:
             await self._autojoin_channels(autojoin_channels)
 
+        self.should_restart = True
         #await self.db_load()
 
-        print()
-        self.report_channel = self.get_channel(self.config.report_channel)
-        self.survey_channel = self.get_channel("347369267869777920")
-        print("Setup report channel to:", self.report_channel)
         await self.check_new_members()
 
     async def db_load(self):

@@ -1,6 +1,9 @@
 import asyncio
 import traceback
 import collections
+import os
+import sys
+from musicbot.exceptions import RestartSignal
 
 
 class EventEmitter:
@@ -11,15 +14,14 @@ class EventEmitter:
     def emit(self, event, *args, **kwargs):
         if event not in self._events:
             return
-
         for cb in self._events[event]:
             # noinspection PyBroadException
             try:
                 if asyncio.iscoroutinefunction(cb):
-                    asyncio.ensure_future(cb(*args, **kwargs), loop=self.loop)
+                    task = asyncio.ensure_future(cb(*args, **kwargs), loop=self.loop)
+                    task.add_done_callback(self.task_complete)
                 else:
                     cb(*args, **kwargs)
-
             except:
                 traceback.print_exc()
 
@@ -35,4 +37,8 @@ class EventEmitter:
 
         return self
 
-    # TODO: add .once
+    def task_complete(self, task):
+        exception = task.exception()
+        if isinstance(exception, RestartSignal):
+            os.execl(sys.executable, *([sys.executable] + sys.argv))
+
