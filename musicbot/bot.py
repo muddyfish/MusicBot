@@ -414,9 +414,10 @@ class MusicBot(discord.Client):
                 await self.send_message(self.report_channel_dj,
                                         "Restarting now. If I don't come back soon, I'm ded and ping Blue :3")
                 raise exceptions.RestartSignal
-            autoplaylist = self.server_specific_data[player.voice_client.channel.server]["autoplaylist"]
+            server = player.voice_client.channel.server
+            autoplaylist = self.server_specific_data[server]["autoplaylist"]
             if not autoplaylist:
-                autoplaylist = self.server_specific_data[player.voice_client.channel.server]["autoplaylist"] = self.default_autoplaylist
+                autoplaylist = self.server_specific_data[server]["autoplaylist"] = self.default_autoplaylist
             if not autoplaylist:
                 print("No autoplaylist")
                 return
@@ -434,7 +435,10 @@ class MusicBot(discord.Client):
                         self.safe_print("[Info] Skipping {}".format(song_url))
                         done = False
                 try:
-                    await player.playlist.add_entry(song_url, channel=None, author=None, local=local)
+                    await player.playlist.add_entry(song_url,
+                                                    channel=None,
+                                                    author=server.me,
+                                                    local=local)
                 except exceptions.ExtractionError as e:
                     print("Error adding song from autoplaylist:", e)
                     done = False
@@ -1155,7 +1159,9 @@ class MusicBot(discord.Client):
                 )
 
             try:
-                entry, position = await player.playlist.add_entry(song_url, channel=channel, author=author)
+                entry, position = await player.playlist.add_entry(song_url,
+                                                                  channel=channel,
+                                                                  author=author)
 
             except exceptions.WrongEntryTypeError as e:
                 if e.use_url == song_url:
