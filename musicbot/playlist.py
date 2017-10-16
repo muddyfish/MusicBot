@@ -46,7 +46,8 @@ class Playlist(EventEmitter):
             entry = LocalPlaylistEntry(
                 self,
                 song_url,
-                *get_info(song_url)
+                *get_info(song_url),
+                **meta
             )
             self._add_entry(entry)
             return entry, len(self.entries)
