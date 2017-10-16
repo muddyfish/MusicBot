@@ -29,7 +29,7 @@ association_table = Table('association',
 class Server(Base):
     __tablename__ = "Server"
     id = Column(Integer, primary_key=True)
-    discord_id = Column(Integer)
+    discord_id = Column(String)
 
     permission_groups = relationship("PermissionsGroup")
     bind_to_channels = Column(String)

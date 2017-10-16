@@ -786,7 +786,7 @@ class MusicBot(discord.Client):
                 break
             await self.safe_send_message(channel, "Please enter a single character")
 
-
+        #server = Server(discord_id=channel.server.id)
 
     async def choose_role(self, channel):
         await self.safe_send_message(channel, "Either mention a role or type the name of a role.")
@@ -1273,6 +1273,24 @@ class MusicBot(discord.Client):
         name = slugify(name)
         write_file(os.path.join("playlists", name+".txt"), urls)
         await self.safe_send_message(channel, "Added playlist and saved as {}".format(name))
+
+    async def cmd_clear_audiocache(self):
+        errors = []
+        for f in os.listdir(self.downloader.download_folder):
+            path = os.path.join(self.downloader.download_folder, f)
+            try:
+                if os.path.isfile(path):
+                    os.unlink(path)
+            except Exception as e:
+                errors.append((f, str(e)))
+        if errors:
+            embed = discord.Embed(title="Errors",
+                                  description=f"When removing errors, {len(errors)} were raised",
+                                  colour=0x3485e7)
+            for filename, error in errors[:15]:
+                embed.add_field(name=filename, value=error)
+            return Response(embed=embed)
+        return Response("The audiocache was cleared successfully")
 
     async def cmd_set_autoplaylist(self, server, path):
         """
@@ -2089,7 +2107,7 @@ class MusicBot(discord.Client):
             description = "Already up to date; not restarting"
         embed = discord.Embed(title=f"Running an update",
                               description=description,
-                              color=0x3485e7)
+                              colour=0x3485e7)
         embed.add_field(name="Output", value=result.stdout.decode("utf-8") or "None", inline=False)
         embed.add_field(name="Errors", value=result.stderr.decode("utf-8") or "None", inline=False)
         embed.add_field(name="Message", value="\n".join(commit["message"] for commit in update["commits"]), inline=False)
