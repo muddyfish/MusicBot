@@ -450,7 +450,7 @@ class MusicBot(discord.Client):
         game = None
         activeplayers = sum(1 for p in self.players.values() if p.is_playing)
         if activeplayers > 1:
-            game = discord.Game(name="music on %s servers" % activeplayers)
+            game = discord.Game(name=f"music on {activeplayers} servers")
             entry = None
 
         elif activeplayers == 1:
@@ -458,9 +458,9 @@ class MusicBot(discord.Client):
             entry = player.current_entry
 
         if entry:
-            prefix = u'\u275A\u275A ' if is_paused else ''
+            prefix = '\u275A\u275A ' if is_paused else ''
 
-            name = u'{}{}'.format(prefix, entry.title)[:128]
+            name = f'{prefix}{entry.title}'[:128]
             game = discord.Game(name=name)
 
         await self.change_presence(game=game)
@@ -528,7 +528,7 @@ class MusicBot(discord.Client):
             return await super().send_typing(destination)
         except discord.Forbidden:
             if self.config.debug_mode:
-                print("Could not send typing to %s, no permssion" % destination)
+                print(f"Could not send typing to {destination}, no permssion")
 
     async def edit_profile(self, **fields):
         return await super().edit_profile(**fields)

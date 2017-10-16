@@ -73,14 +73,14 @@ class BasePlaylistEntry:
 
 
 class LocalPlaylistEntry(BasePlaylistEntry):
-    def __init__(self, playlist, file_path, title, length):
+    def __init__(self, playlist, file_path, title, length, **meta):
         super().__init__()
 
         self.playlist = playlist
         self.filename = file_path
         self.title = title
         self.duration = length
-        self.meta = {}
+        self.meta = meta
 
 
 class URLPlaylistEntry(BasePlaylistEntry):
