@@ -1872,6 +1872,12 @@ class MusicBot(discord.Client):
         return Response(embed=embed, delete_after=30)
 
     async def cmd_remove_queue(self, player, remove_id):
+        """
+        Usage:
+            {command_prefix}remove_queue [remove_id]
+
+        Removes the song with id [remove_id] from the queue
+        """
         try:
             remove_id = int(remove_id, 0)
         except:
