@@ -2090,12 +2090,20 @@ class MusicBot(discord.Client):
         return Response(":ok_hand:", delete_after=20)
 
     async def cmd_disconnect(self, server):
-        """Disconnect from the voice channel"""
+        """
+        Usage:
+            {command_prefix}disconnect
+        Disconnect from the voice channel
+        """
         await self.disconnect_voice_client(server)
         return Response(":hear_no_evil:", delete_after=20)
 
     async def cmd_restart(self, channel):
-        """Restart the bot."""
+        """
+        Usage:
+            {command_prefix}restart
+        Restart the bot.
+        """
         await self.safe_send_message(channel, ":wave:")
         await self.disconnect_all_voice_clients()
         raise exceptions.RestartSignal
@@ -2125,13 +2133,20 @@ class MusicBot(discord.Client):
         return Response(embed=embed)
 
     async def cmd_shutdown(self, channel):
-        """Shut down the bot without a restart. Please do not use unless I'm doing something *very* wrong."""
+        """
+        Usage:
+            {command_prefix}shutdown
+        Shut down the bot without a restart. Please do not use unless I'm doing something *very* wrong."""
         await self.safe_send_message(channel, ":wave:")
         await self.disconnect_all_voice_clients()
         raise exceptions.TerminateSignal
 
     async def cmd_agree(self, author):
-        """Agree to the terms of usage for the bot and allows access to commands"""
+        """
+        Usage:
+            {command_prefix}agree
+        Agree to the terms of usage for the bot and allows access to commands
+        """
         await self.agree(author.id)
         return Response("You have agreed to this bot storing information about you.\n"
                         "You may now use commands",
@@ -2144,7 +2159,10 @@ class MusicBot(discord.Client):
             await agreelist_f.write(json.dumps(list(self.agree_list)))
 
     async def cmd_disagree(self, author):
-        """Disagree to the terms of usage for the bot and disallows access to commands. Also removes all stored data
+        """
+        Usage:
+            {command_prefix}disagree
+        Disagree to the terms of usage for the bot and disallows access to commands. Also removes all stored data
         about you. You must not any 'fresh' roles to perform this command"""
         jobs = self.jobstore.get_all_jobs()
         for job in jobs:
