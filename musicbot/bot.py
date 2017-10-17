@@ -2121,7 +2121,10 @@ class MusicBot(discord.Client):
         raise exceptions.RestartSignal
 
     async def cmd_update(self, update=None):
-        """Check for updates and apply them if any"""
+        """
+        Usage:
+            {command_prefix}update
+        Check for updates and apply them if any"""
         if update is None:
             update = {"commits": [{"message": "Manually triggered"}]}
         result = subprocess.run(['git', 'pull'],
