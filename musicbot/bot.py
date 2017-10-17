@@ -1707,6 +1707,12 @@ class MusicBot(discord.Client):
         return Response("{} was moved to the top of the queue.".format(entry.title))
 
     async def cmd_next(self, player, permissions):
+        """
+        Usage:
+            {command_prefix}next
+
+        Instantly skip the song playing. Usable if you have instant skip privileges or put the song on the queue
+        """
         if permissions.instaskip:
             player.skip()
             return Response("The next song will start playing shortly", delete_after=10)
