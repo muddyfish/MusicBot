@@ -2136,7 +2136,7 @@ class MusicBot(discord.Client):
             for player in self.players.values():
                 playlist = player.playlist
                 max_time = max((max_time, await playlist.estimate_time_until(None, player)))
-            description = f"Scheduled a restart after the queue is empty, restart estimated to be in {max_time}."
+            description = f"Scheduled a restart after the queue is empty, estimated to be in {max_time}."
         else:
             description = "Already up to date; not restarting"
         embed = discord.Embed(title=f"Running an update",
