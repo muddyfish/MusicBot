@@ -895,13 +895,10 @@ class MusicBot(discord.Client):
         if command:
             cmd = getattr(self, 'cmd_' + command, None)
             if cmd:
-                return Response(
-                    "```\n{}```".format(
-                        dedent(cmd.__doc__),
-                        command_prefix=self.config.command_prefix
-                    ),
-                    delete_after=60
-                )
+                embed = discord.Embed(title=f"Help for {command}",
+                                      description=dedent(cmd.__doc__).format(command_prefix=self.config.command_prefix))
+                return Response(embed=embed,
+                                delete_after=60)
             else:
                 return Response("No such command", delete_after=10)
 
