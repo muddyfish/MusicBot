@@ -266,7 +266,10 @@ class Playlist(EventEmitter):
         """
             (very) Roughly estimates the time till the queue will 'position'
         """
-        estimated_time = sum([e.duration for e in islice(self.entries, position - 1)])
+        if position is None:
+            estimated_time = sum(e.duration for e in self.entries)
+        else:
+            estimated_time = sum(e.duration for e in islice(self.entries, position - 1))
 
         # When the player plays a song, it eats the first playlist item, so we just have to add the time back
         if not player.is_stopped and player.current_entry:
