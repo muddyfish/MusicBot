@@ -437,7 +437,6 @@ class MusicBot(discord.Client):
                 try:
                     await player.playlist.add_entry(song_url,
                                                     channel=None,
-                                                    author=server.me,
                                                     local=local)
                 except exceptions.ExtractionError as e:
                     print("Error adding song from autoplaylist:", e)
