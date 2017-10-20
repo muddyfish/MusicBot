@@ -1835,7 +1835,7 @@ class MusicBot(discord.Client):
         unlisted = 0
         andmoretext = '* ... and %s more*' % ('x' * len(player.playlist.entries))
 
-        for i, item in enumerate([player.current_entry]+list(*player.playlist)):
+        for i, item in enumerate([player.current_entry, *player.playlist]):
             if hasattr(item, "url"):
                 name = f"[{item.title}]({item.url})"
             else:

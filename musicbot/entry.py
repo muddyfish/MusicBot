@@ -184,7 +184,7 @@ class URLPlaylistEntry(BasePlaylistEntry):
                 else:
                     print("File not found in cache (%s)" % expected_fname_noex)
                     await self._really_download(hash=True)
-                self.title, self.duration, _ = get_info(self.filename)
+                self.title, self.duration, self.artist = get_info(self.filename)
             else:
                 ldir = os.listdir(self.download_folder)
                 flistdir = [f.rsplit('.', 1)[0] for f in ldir]
