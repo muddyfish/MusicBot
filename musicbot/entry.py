@@ -73,13 +73,14 @@ class BasePlaylistEntry:
 
 
 class LocalPlaylistEntry(BasePlaylistEntry):
-    def __init__(self, playlist, file_path, title, length, **meta):
+    def __init__(self, playlist, file_path, title, length, artist, **meta):
         super().__init__()
 
         self.playlist = playlist
         self.filename = file_path
         self.title = title
         self.duration = length
+        self.artist = artist
         self.meta = meta
 
 
@@ -91,6 +92,7 @@ class URLPlaylistEntry(BasePlaylistEntry):
         self.url = url
         self.title = title
         self.duration = duration
+        self.artist = ""
         self.expected_filename = expected_filename
         self.meta = meta
 
@@ -182,7 +184,7 @@ class URLPlaylistEntry(BasePlaylistEntry):
                 else:
                     print("File not found in cache (%s)" % expected_fname_noex)
                     await self._really_download(hash=True)
-                self.title, self.duration = get_info(self.filename)
+                self.title, self.duration, _ = get_info(self.filename)
             else:
                 ldir = os.listdir(self.download_folder)
                 flistdir = [f.rsplit('.', 1)[0] for f in ldir]

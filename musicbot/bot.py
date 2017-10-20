@@ -1835,28 +1835,20 @@ class MusicBot(discord.Client):
         unlisted = 0
         andmoretext = '* ... and %s more*' % ('x' * len(player.playlist.entries))
 
-        if player.current_entry:
-            song_progress = str(timedelta(seconds=player.progress)).lstrip('0').lstrip(':')
-            song_total = str(timedelta(seconds=player.current_entry.duration)).lstrip('0').lstrip(':')
-            prog_str = f"[{song_progress}/{song_total}]"
-            if hasattr(player.current_entry, "url"):
-                name = f"[{player.current_entry.title}]({player.current_entry.url})"
-            else:
-                name = player.current_entry.title
-            if player.current_entry.meta.get('channel', False) and player.current_entry.meta.get('author', False):
-                lines.append(f"Now Playing: **{name}** added by **{player.current_entry.meta['author'].name}** {prog_str}\n")
-            else:
-                lines.append(f"Now Playing: **{name}** {prog_str}\n")
-        for i, item in enumerate(player.playlist, 1):
+        for i, item in enumerate([player.current_entry]+list(*player.playlist)):
             if hasattr(item, "url"):
                 name = f"[{item.title}]({item.url})"
             else:
                 name = item.title
             song_total = str(timedelta(seconds=item.duration)).lstrip('0').lstrip(':')
+            start = f"{i if i else 'Now playing:'}. **{name}** {item.artist and '({})'.format(item.artist)} "
+            if i == 0:
+                song_progress = str(timedelta(seconds=player.progress)).lstrip('0').lstrip(':')
+                song_total = f"{song_progress}/{song_total}"
             if item.meta.get('channel', False) and item.meta.get('author', False):
-                nextline = f"{i}. **{name}** added by **{item.meta['author'].name}** [{song_total}]".strip()
+                nextline = start + f"added by **{item.meta['author'].name}** [{song_total}]".strip()
             else:
-                nextline = f"{i}. **{name}** [{song_total}]".strip()
+                nextline = start + f"[{song_total}]".strip()
 
             currentlinesum = sum(len(x) + 1 for x in lines)  # +1 is for newline char
 

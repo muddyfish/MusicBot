@@ -39,6 +39,7 @@ class Playlist(EventEmitter):
             Returns the entry & the position it is in the queue.
 
             :param song_url: The song url to add to the playlist.
+            :param local: If the song is stored locally.
             :param meta: Any additional metadata to add to the playlist entry.
         """
         if local:

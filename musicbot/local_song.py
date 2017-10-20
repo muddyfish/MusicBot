@@ -36,7 +36,8 @@ def get_info(song_url):
     try:
         song = taglib.File(song_url.encode("utf-8"))
     except OSError:
-        return song_url, 0
+        return song_url, 0, ""
     name = get_field(song, "TITLE", os.path.split(song_url)[-1][:-4])
+    artist = get_field(song, "ARTIST", "")
     length = song.length
-    return name, length
+    return name, length, artist
