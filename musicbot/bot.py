@@ -2129,15 +2129,11 @@ class MusicBot(discord.Client):
         result = subprocess.run(['git', 'pull'],
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE)
-        self.should_restart |= result.stdout != b'Already up-to-date.\n'
-        if self.should_restart:
-            max_time = timedelta(seconds=0)
-            for player in self.players.values():
-                playlist = player.playlist
-                max_time = max((max_time, await playlist.estimate_time_until(None, player)))
-            description = f"Scheduled a restart after the queue is empty, estimated to be in {max_time}."
-        else:
-            description = "Already up to date; not restarting"
+        max_time = timedelta(seconds=0)
+        for player in self.players.values():
+            playlist = player.playlist
+            max_time = max((max_time, await playlist.estimate_time_until(None, player)))
+        description = f"Scheduled a restart after the queue is empty, estimated to be in {max_time}."
         embed = discord.Embed(title=f"Running an update",
                               description=description,
                               colour=0x3485e7)
