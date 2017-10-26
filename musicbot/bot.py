@@ -728,7 +728,25 @@ class MusicBot(discord.Client):
                                                   "which might be considered sensitive.")
             report_channel = await self.get_sendable_channel(channel)
             await self.safe_send_message(channel, f"Set report channel to {report_channel.mention}")
-        enable_fresh = await self.ask_yn(channel, "Do you want to enable the removal of a 'new user' role 7 days after joining the server?")
+
+        warning_channel = await self.ask_yn(channel,
+                                            "Would you like to designate a channel where all server warnings are kept?")
+        if warning_channel:
+            await self.safe_send_message(channel, "Please mention a channel where I can keep official server warnings")
+            warning_channel = await self.get_sendable_channel(channel)
+            await self.safe_send_message(channel, f"Set warning channel to {warning_channel.mention}")
+
+        secondary_report_channel = await self.ask_yn(channel,
+                                            "Would you like to designate a channel to mention less sensitive data?\n"
+                                            "This would include things like prepared updates")
+        if secondary_report_channel:
+            await self.safe_send_message(channel, "Please mention a channel where I can post secondary report data")
+            secondary_report_channel = await self.get_sendable_channel(channel)
+            await self.safe_send_message(channel, f"Set the secondary report channel to {secondary_report_channel.mention}")
+
+        enable_fresh = await self.ask_yn(channel,
+                                         "Do you want to enable the removal of a 'new user' role 7 days after joining "
+                                         "the server?")
         while not server.me.server_permissions.manage_roles and enable_fresh:
             enable_fresh = await self.ask_yn(channel, "I need to be able to manage roles for this.\n"
                                                       "Please give me manage  roles and select 🇾 or select 🇳 and I "
