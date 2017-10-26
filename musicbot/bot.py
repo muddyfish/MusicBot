@@ -2531,7 +2531,7 @@ class MusicBot(discord.Client):
         for member in server.members:
             if len(member.roles) == 1:
                 members.append(member.mention)
-        return Response(", ".join(members))
+        return Response(", ".join(members) or "There are no users without a role")
 
     async def cmd_start_survey(self, channel_mentions):
         if channel_mentions[0] == self.survey_channel:
