@@ -2525,6 +2525,14 @@ class MusicBot(discord.Client):
                 ))
         await self.safe_send_message(channel, "\n".join(rtn))
 
+    async def cmd_new_users(self, server):
+        await self.request_offline_members(server)
+        members = []
+        for member in server.members:
+            if len(member.roles) == 1:
+                members.append(member.mention)
+        return Response(", ".join(members))
+
     async def cmd_start_survey(self, channel_mentions):
         if channel_mentions[0] == self.survey_channel:
             return Response("There is already a survey running in this channel")
