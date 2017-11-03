@@ -1887,7 +1887,7 @@ class MusicBot(discord.Client):
         embed = discord.Embed(title="Queue",
                               description="\n".join(lines),
                               colour=0x3485e7)
-        return Response(embed=embed, delete_after=30)
+        return Response(embed=embed, delete_after=60)
 
     async def cmd_remove_queue(self, player, remove_id):
         """
