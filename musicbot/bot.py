@@ -2153,6 +2153,7 @@ class MusicBot(discord.Client):
         embed.add_field(name="Output", value=result.stdout.decode("utf-8") or "None", inline=False)
         embed.add_field(name="Errors", value=result.stderr.decode("utf-8") or "None", inline=False)
         embed.add_field(name="Message", value="\n".join(commit["message"] for commit in update["commits"]), inline=False)
+        self.should_restart = True
         return Response(embed=embed)
 
     async def cmd_shutdown(self, channel):
