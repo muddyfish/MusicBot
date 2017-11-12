@@ -463,7 +463,8 @@ class MusicBot(discord.Client):
             prefix = '\u275A\u275A ' if is_paused else ''
 
             name = f'{prefix}{entry.title}'[:128]
-            game = discord.Game(name=name)
+            game = discord.Game(name=name,
+                                type=2)
 
         await self.change_presence(game=game)
 
