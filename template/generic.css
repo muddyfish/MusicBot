@@ -10,7 +10,7 @@ body {
 .navbar-fixed-bottom {
     height:5vh;
     min-height: 30px;
-    background-image: url('/static/im/discord_logo.png');
+    background-image: url('{{ base_url }}/static/im/discord_logo.png');
     background-position: left;
     background-repeat: no-repeat;
     background-size: contain;

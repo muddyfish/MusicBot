@@ -130,6 +130,7 @@ class MusicBot(discord.Client):
         self.app = web.Application()
 
         aiohttp_jinja2.setup(self.app, loader=FileSystemLoader("./template/"))
+        self.app.router.add_get('/static/css/generic.css', self.render_generic)
         self.app.router.add_static("/static/", "./static")
 
         self.app.router.add_post('/update', self.handle_update)
@@ -490,6 +491,13 @@ class MusicBot(discord.Client):
                                      embed=response.embed)
         return web.Response(text="")
 
+    async def render_generic(self, request):
+        response = web.Response(status=200)
+        response.content_type = 'text/css'
+        response.charset = "utf-8"
+        response.text = aiohttp_jinja2.render_string("generic.css", request, {"base_url": self.config.url})
+        return response
+
     @aiohttp_jinja2.template('setup.jinja2')
     async def handle_setup_server(self, request):
         args = request.GET
@@ -503,7 +511,8 @@ class MusicBot(discord.Client):
             'redirect_uri': f"{self.config.url}/setup"
         }
 
-        return {"guild": self.get_server("277442894904819714")}
+        return {"guild": self.get_server("277442894904819714"),
+                "base_url": self.config.url}
 
         async with self.aiosession.post("https://discordapp.com/api/v6/oauth2/token",
                                         data=data,
