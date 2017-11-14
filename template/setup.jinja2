@@ -1,0 +1,74 @@
+{% extends 'template.jinja2' %}
+{% macro channel_select(name, type, multiselect) %}
+    <div class="row">
+        <div class="col-xs-3 col-sm-2 col-md-2 col-lg-1">
+            {{ name }}
+        </div>
+        <div class="col-xs-1">
+            <span class="glyphicon glyphicon-menu-right" aria-hidden="true"></span>
+        </div>
+        <div class="col-xs-5">
+            {% if multiselect %}
+                <select class="multiselect" multiple="multiple">
+                    {% for channel in guild.channels | sort(attribute="position") %}
+                        {% if channel.type.name == type %}
+                            <option value="{{ channel.id }}">{{ channel.name }}</option>
+                        {% endif %}
+                    {% endfor %}
+                </select>
+            {% else %}
+                <div class="dropdown inline">
+                    <button class="btn btn-primary dropdown-toggle" type="button" data-toggle="dropdown">Select {{ "channels" if multiselect else "a channel"}}
+                        <span class="caret"></span>
+                    </button>
+                    <ul class="dropdown-menu pre-scrollable">
+                        <li><a href="#" id="0">No Channel</a></li>
+                        {% for channel in guild.channels | sort(attribute="position") %}
+                            {% if channel.type.name == type %}
+                                <li><a href="#" id="{{ channel.id }}">{{ channel.name }}</a></li>
+                            {% endif %}
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+{% endmacro %}
+{% block title %}Setup your server{% endblock %}
+{% block head %}
+    <script type="text/javascript" src="/static/js/bootstrap-multiselect.min.js"></script>
+    <link rel="stylesheet" href="/static/css/bootstrap-multiselect.css" type="text/css"/>
+{% endblock %}
+{% block content %}
+
+    {% for selection in ("report", "debug_report", "warning", "survey") %}
+        {{ channel_select(selection, "text", False) }}
+        <br>
+    {% endfor %}
+    <hr>
+    {% for selection in ("respond_in",) %}
+        {{ channel_select(selection, "text", True) }}
+        <br>
+    {% endfor %}
+    <hr>
+    {% for selection in ("autoconnect",) %}
+        {{ channel_select(selection, "voice", False) }}
+        <br>
+    {% endfor %}
+{% endblock %}
+{% block script %}
+    <script>
+        $(".dropdown-menu li a").click(function(){
+            $(this).parents(".dropdown").find('.btn').html($(this).text() + ' <span class="caret"></span>');
+            $(this).parents(".dropdown").find('.btn').val($(this).data('value'));
+        });
+
+        $(document).ready(function() {
+            $(".multiselect").multiselect({
+            templates: {
+                button: '<button type="button" class="multiselect btn btn-primary dropdown-toggle no-shadow" data-toggle="dropdown"><span class="multiselect-selected-text"></span> <b class="caret"></b></button>',
+                ul:'<ul class="multiselect-container dropdown-menu pre-scrollable"></ul>'
+            }});
+        });
+    </script>
+{% endblock %}

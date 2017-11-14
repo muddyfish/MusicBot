@@ -6,3 +6,4 @@ apscheduler
 sqlalchemy
 pytaglib
 aiofiles
+aiohttp_jinja2

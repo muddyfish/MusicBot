@@ -36,7 +36,7 @@ class Config:
         config = configparser.ConfigParser(interpolation=None)
         config.read(config_file, encoding='utf-8')
 
-        confsections = {"Credentials", "Roles", "Chat", "MusicBot"}.difference(config.sections())
+        confsections = {"Credentials", "Roles", "Chat", "MusicBot", "WebServer"}.difference(config.sections())
         if confsections:
             raise HelpfulError(
                 "One or more required config sections are missing.",
@@ -48,6 +48,11 @@ class Config:
             )
 
         self._login_token = config.get('Credentials', 'Token', fallback=ConfigDefaults.token)
+        self.client_secret = config.get("Credentials", "ClientSecret", fallback=None)
+
+        self.host = config.get("WebServer", "host", fallback="127.0.0.1")
+        self.port = int(config.get("WebServer", "port", fallback="5000"))
+        self.url = config.get("WebServer", "URL", fallback=f"http://{self.host}:{self.port}")
 
         self.auth = None
 

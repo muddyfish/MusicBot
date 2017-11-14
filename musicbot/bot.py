@@ -18,6 +18,9 @@ from textwrap import dedent
 import aiofiles
 import aiohttp
 from aiohttp import web
+import aiohttp_jinja2
+from jinja2 import FileSystemLoader
+
 import discord
 from apscheduler import events
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
@@ -94,6 +97,7 @@ class MusicBot(discord.Client):
         self.blacklist = set(load_file(self.config.blacklist_file))
         self.default_autoplaylist = load_file(self.config.auto_playlist_file)
         self.downloader = downloader.Downloader(download_folder='audio_cache')
+        self.server_listeners = []
 
         self.exit_signal = None
         self.init_ok = False
@@ -124,8 +128,13 @@ class MusicBot(discord.Client):
         self.should_restart = False
 
         self.app = web.Application()
+
+        aiohttp_jinja2.setup(self.app, loader=FileSystemLoader("./template/"))
+        self.app.router.add_static("/static/", "./static")
+
         self.app.router.add_post('/update', self.handle_update)
         self.app.router.add_get('/update', self.handle_update)
+        self.app.router.add_get('/setup', self.handle_setup_server)
         self.handler = self.app.make_handler()
         self.web_server = self.loop.create_server(self.handler,
                                                   MusicBot.host,
@@ -468,6 +477,11 @@ class MusicBot(discord.Client):
 
         await self.change_presence(game=game)
 
+    async def on_server_join(self, server):
+        for predicate, future in self.server_listeners:
+            if predicate(server):
+                future.set_result(server)
+
     async def handle_update(self, request):
         update = await request.json()
         response = await self.cmd_update(update)
@@ -475,6 +489,42 @@ class MusicBot(discord.Client):
                                      "",
                                      embed=response.embed)
         return web.Response(text="")
+
+    @aiohttp_jinja2.template('setup.jinja2')
+    async def handle_setup_server(self, request):
+        args = request.GET
+        code = args["code"]
+
+        data = {
+            'client_id': self.user.id,
+            'client_secret': self.config.client_secret,
+            'grant_type': 'authorization_code',
+            'code': code,
+            'redirect_uri': f"{self.config.url}/setup"
+        }
+
+        return {"guild": self.get_server("277442894904819714")}
+
+        async with self.aiosession.post("https://discordapp.com/api/v6/oauth2/token",
+                                        data=data,
+                                        headers={"Content-Type": "application/x-www-form-urlencoded"}) as res:
+            token = await res.json()
+            scopes = token["scope"].split()
+            access_token = token["access_token"]
+            refresh_token = token["refresh_token"]
+            guild = token["guild"]
+            guild_id = guild["id"]
+            assert guild_id == args["guild_id"]
+            if guild_id not in (server.id for server in self.servers):
+                future = asyncio.Future(loop=self.loop)
+                self.server_listeners.append((lambda server: server.id == guild_id, future))
+                server = await asyncio.wait_for(future, 0, loop=self.loop)
+            else:
+                server = next(server for server in self.servers if server.id == guild_id)
+            print(token, server)
+        permissions = args["permissions"]
+        await self.leave_server(self.get_server(guild_id))
+        return {"guild": server}
 
     async def safe_send_message(self, dest, content=None, *, embed=None, tts=False, expire_in=0, also_delete=None, quiet=False):
         msg = None
@@ -700,54 +750,12 @@ class MusicBot(discord.Client):
     async def db_load(self):
         for server in self.servers:
             if self.get_server_db(server) is None:
-                if server.id == "365116542574395393":
-                    await self.configure_new_server(server)
+                pass
 
     def get_server_db(self, server):
         return self.session.query(Server).filter(Server.discord_id == server.id).first()
 
     async def configure_new_server(self, server):
-        sendable_channels = await self.get_sendable_channels(server)
-        await self.safe_send_message(sendable_channels[0],
-                                     "Hello, and thanks for deciding to use this bot.\n"
-                                     "To start off, let's choose a channel to continue the configuration process.\n"
-                                     "This bot must have both read and send message permissions in that channel.\n"
-                                     "Please reply with a mention for a channel.\n"
-                                    f"This channel would be {sendable_channels[0].mention}.\n"
-                                     "To continue, the next command requires users to have the Manage Server "
-                                     "permission.\n"
-                                     "This is to protect your server whilst we're setting up permissions.\n"
-                                     "Note that after the channel is decided, anybody with access to that channel can "
-                                     "continue setup")
-        channel = await self.get_sendable_channel(sendable_channels[0])
-        report_here = await self.ask_yn(channel,
-                                        "Ok, let's continue here, shall we?\n"
-                                        "Firstly, would it be ok to use this channel as a general report channel for "
-                                        "various things, such as automated messages, some of which might be sensitive.",
-                                        check=self.has_manage_server)
-        if report_here:
-            report_channel = channel
-        else:
-            await self.safe_send_message(channel, "Please mention a channel where I can report various things, some of "
-                                                  "which might be considered sensitive.")
-            report_channel = await self.get_sendable_channel(channel)
-            await self.safe_send_message(channel, f"Set report channel to {report_channel.mention}")
-
-        warning_channel = await self.ask_yn(channel,
-                                            "Would you like to designate a channel where all server warnings are kept?")
-        if warning_channel:
-            await self.safe_send_message(channel, "Please mention a channel where I can keep official server warnings")
-            warning_channel = await self.get_sendable_channel(channel)
-            await self.safe_send_message(channel, f"Set warning channel to {warning_channel.mention}")
-
-        secondary_report_channel = await self.ask_yn(channel,
-                                            "Would you like to designate a channel to mention less sensitive data?\n"
-                                            "This would include things like prepared updates")
-        if secondary_report_channel:
-            await self.safe_send_message(channel, "Please mention a channel where I can post secondary report data")
-            secondary_report_channel = await self.get_sendable_channel(channel)
-            await self.safe_send_message(channel, f"Set the secondary report channel to {secondary_report_channel.mention}")
-
         enable_fresh = await self.ask_yn(channel,
                                          "Do you want to enable the removal of a 'new user' role 7 days after joining "
                                          "the server?")
@@ -2090,7 +2098,7 @@ class MusicBot(discord.Client):
         return Response(":ok_hand:", delete_after=20)
 
     @owner_only
-    async def cmd_setavatar(self, message, url=None):
+    async def cmd_set_avatar(self, message, url=None):
         """
         Usage:
             {command_prefix}setavatar [url]
