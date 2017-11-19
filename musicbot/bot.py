@@ -1933,7 +1933,7 @@ class MusicBot(discord.Client):
         del player.playlist.entries[remove_id-1]
         return Response(f"Removed `{entry.title.replace('`', '')}` from the queue.")
 
-    async def cmd_clean(self, message, channel_mentions, server, user_mentions, leftover_args):
+    async def cmd_clean(self, message, channel, channel_mentions, server, user_mentions, leftover_args):
         """
         Usage:
             {command_prefix}clean [range] @user1 @user2
@@ -1955,7 +1955,7 @@ class MusicBot(discord.Client):
 
         deleted = 0
         failed = []
-        for channel in channel_mentions:
+        for channel in channel_mentions or [channel]:
             if channel.permissions_for(server.me).manage_messages:
                 deleted += len(await self.purge_from(channel, check=check, limit=search_range, before=message))
             else:
