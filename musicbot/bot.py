@@ -10,6 +10,7 @@ import time
 import traceback
 from collections import defaultdict
 from datetime import timedelta
+import datetime
 from functools import wraps
 from io import BytesIO
 from random import choice, shuffle
@@ -1932,62 +1933,34 @@ class MusicBot(discord.Client):
         del player.playlist.entries[remove_id-1]
         return Response(f"Removed `{entry.title.replace('`', '')}` from the queue.")
 
-    async def cmd_clean(self, message, channel, server, author, search_range=50):
+    async def cmd_clean(self, message, channel, server, user_mentions, search_range=50):
         """
         Usage:
-            {command_prefix}clean [range]
+            {command_prefix}clean [range] @user1 @user2
 
-        Removes up to [range] messages the bot has posted in chat. Default: 50, Max: 1000
+        Removes all messages by mentioned users in the last `search_range` messages.
+        Defaults to all messages.
         """
 
         try:
-            float(search_range)  # lazy check
-            search_range = min(int(search_range), 1000)
+            search_range = int(search_range)
         except:
             return Response("enter a number.  NUMBER.  That means digits.  `15`.  Etc.", reply=True, delete_after=8)
 
         await self.safe_delete_message(message, quiet=True)
 
-        def is_possible_command_invoke(entry):
-            valid_call = any(
-                entry.content.startswith(prefix) for prefix in [self.config.command_prefix])  # can be expanded
-            return valid_call and not entry.content[1:2].isspace()
-
-        delete_invokes = True
-        delete_all = channel.permissions_for(author).manage_messages or self.owner.id == author.id
-
         def check(message):
-            if is_possible_command_invoke(message) and delete_invokes:
-                return delete_all or message.author == author
-            return message.author == self.user
+            if datetime.datetime.now() - timedelta(days=14) >= message.timestamp:
+                return False
+            if not user_mentions:
+                return True
+            return any(message.author == user for user in user_mentions)
 
         if channel.permissions_for(server.me).manage_messages:
             deleted = await self.purge_from(channel, check=check, limit=search_range, before=message)
-            return Response(f"Cleaned up {len(deleted)} message{'s' if deleted else ''}.", delete_after=15)
+            return Response(f"Cleaned up {len(deleted)} message{'s' if deleted!=1 else ''}.", delete_after=15)
 
-        deleted = 0
-        async for entry in self.logs_from(channel, search_range, before=message):
-            if entry == self.server_specific_data[channel.server]['last_np_msg']:
-                continue
-
-            if entry.author == self.user:
-                await self.safe_delete_message(entry)
-                deleted += 1
-                await asyncio.sleep(0.21)
-
-            if is_possible_command_invoke(entry) and delete_invokes:
-                if delete_all or entry.author == author:
-                    try:
-                        await self.delete_message(entry)
-                        await asyncio.sleep(0.21)
-                        deleted += 1
-
-                    except discord.Forbidden:
-                        delete_invokes = False
-                    except discord.HTTPException:
-                        pass
-
-        return Response('Cleaned up {} message{}.'.format(deleted, 's' * bool(deleted)), delete_after=15)
+        return Response(f"I do not have manage permissions for {channel.mention}", delete_after=15)
 
     async def cmd_listids(self, server, author, leftover_args, cat='all'):
         """
