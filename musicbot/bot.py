@@ -1933,7 +1933,7 @@ class MusicBot(discord.Client):
         del player.playlist.entries[remove_id-1]
         return Response(f"Removed `{entry.title.replace('`', '')}` from the queue.")
 
-    async def cmd_clean(self, message, channel, server, user_mentions, search_range=50):
+    async def cmd_clean(self, message, channel_mentions, server, user_mentions, leftover_args):
         """
         Usage:
             {command_prefix}clean [range] @user1 @user2
@@ -1942,10 +1942,7 @@ class MusicBot(discord.Client):
         Defaults to all messages.
         """
 
-        try:
-            search_range = int(search_range)
-        except:
-            return Response("enter a number.  NUMBER.  That means digits.  `15`.  Etc.", reply=True, delete_after=8)
+        search_range = int(next((arg for arg in leftover_args if arg.isnumeric()), 50))
 
         await self.safe_delete_message(message, quiet=True)
 
@@ -1956,11 +1953,15 @@ class MusicBot(discord.Client):
                 return True
             return any(message.author == user for user in user_mentions)
 
-        if channel.permissions_for(server.me).manage_messages:
-            deleted = await self.purge_from(channel, check=check, limit=search_range, before=message)
-            return Response(f"Cleaned up {len(deleted)} message{'s' if deleted!=1 else ''}.", delete_after=15)
-
-        return Response(f"I do not have manage permissions for {channel.mention}", delete_after=15)
+        deleted = 0
+        failed = []
+        for channel in channel_mentions:
+            if channel.permissions_for(server.me).manage_messages:
+                deleted += len(await self.purge_from(channel, check=check, limit=search_range, before=message))
+            else:
+                failed.append(channel.mention)
+        return Response(f"Cleaned up {deleted} message{'s' if deleted!=1 else ''}." +
+                        f"\nI do not have manage permissions for {', '.join(failed)}" if failed else "", delete_after=15)
 
     async def cmd_listids(self, server, author, leftover_args, cat='all'):
         """
