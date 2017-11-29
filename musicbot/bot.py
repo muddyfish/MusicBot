@@ -2506,7 +2506,7 @@ class MusicBot(discord.Client):
                                                  "{} has already had Fresh removed from them".format(user.mention))
             else:
                 await self.safe_send_message(self.server_specific_data[server]["report_channel"],
-                                             "Something went wrong removing the fresh role from user: {} (user not found or Fresh role not found)".format(user_id))
+                                             "Something went wrong removing the fresh role from user: {} (user not found or Fresh role not found)".format(user.mention))
         except Exception:
             traceback.print_exc()
             if self.config.debug_mode:
