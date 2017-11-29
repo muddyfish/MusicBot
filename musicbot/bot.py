@@ -424,11 +424,11 @@ class MusicBot(discord.Client):
 
     async def on_player_finished_playing(self, player, **_):
         if not player.playlist.entries and not player.current_entry:
+            server = player.voice_client.channel.server
             if self.should_restart:
-                await self.send_message(self.report_channel_dj,
+                await self.send_message(self.server_specific_data[server]["report_channel_dj"],
                                         "Restarting now. If I don't come back soon, I'm ded and ping Blue :3")
                 raise exceptions.RestartSignal
-            server = player.voice_client.channel.server
             autoplaylist = self.server_specific_data[server]["autoplaylist"]
             if not autoplaylist:
                 autoplaylist = self.server_specific_data[server]["autoplaylist"] = self.default_autoplaylist
@@ -487,9 +487,10 @@ class MusicBot(discord.Client):
     async def handle_update(self, request):
         update = await request.json()
         response = await self.cmd_update(update)
-        await self.safe_send_message(self.report_channel_dj,
-                                     "",
-                                     embed=response.embed)
+        for server, data in self.server_specific_data.items():
+            await self.safe_send_message(data["report_channel"],
+                                         "",
+                                         embed=response.embed)
         return web.Response(text="")
 
     async def render_generic(self, request):
@@ -513,7 +514,8 @@ class MusicBot(discord.Client):
         }
 
         return {"guild": self.get_server("277442894904819714"),
-                "base_url": self.config.url}
+                "base_url": self.config.url,
+                "specific_info": self.server_specific_data[self.get_server("277442894904819714")]}
 
         async with self.aiosession.post("https://discordapp.com/api/v6/oauth2/token",
                                         data=data,
@@ -743,12 +745,13 @@ class MusicBot(discord.Client):
         print("  Downloaded songs will be %s" % ['deleted', 'saved'][self.config.save_videos])
         print()
 
-        self.report_channel = self.get_channel(self.config.report_channel)
-        self.report_channel_dj = self.get_channel("283362758509199370")
-        self.survey_channel = self.get_channel("347369267869777920")
+        awsw = self.server_specific_data[self.get_server("277442894904819714")]
+        awsw["report_channel"] = self.get_channel("359394374553042944")
+        awsw["report_channel_dj"] = self.get_channel("283362758509199370")
+        awsw["warning_channel"] = self.get_channel("308242501096177664")
+        awsw["survey_channel"] = self.get_channel("347369267869777920")
 
         print()
-        print("Setup report channel to:", self.report_channel)
 
         if self.config.autojoin_channels:
             await self._autojoin_channels(autojoin_channels)
@@ -2238,7 +2241,7 @@ class MusicBot(discord.Client):
         await self.wait_until_ready()
         message_content = message.content.strip()
         if message.channel.is_private and message.author.id != self.user.id:
-            if self.survey_channel:
+            if any("survey_channel" in server.keys() for server in self.server_specific_data.values()):
                 await self.handle_survey(message.author, message.channel, message_content)
 
         uses_alternate = message_content.startswith(self.config.alternate_command_prefix)
@@ -2251,18 +2254,22 @@ class MusicBot(discord.Client):
             if not uses_alternate:
                 return
 
-        if uses_alternate:
+        try:
+            command, *args = shlex.split(message_content)
+        except ValueError:
+            command, *args = message_content.split()
+        command = command[len(self.config.command_prefix):].lower().strip()
+
+        if command == "warn":
+            #Horrible hack here
+            pass
+
+        elif uses_alternate:
             if self.config.alternate_bound_channels and message.channel.id not in self.config.alternate_bound_channels and not message.channel.is_private:
                 return
         else:
             if self.config.bound_channels and message.channel.id not in self.config.bound_channels and not message.channel.is_private:
                 return  # if I want to log this I just move it under the prefix check
-
-        try:
-            command, *args = shlex.split(message_content)  # Uh, doesn't this break prefixes with spaces in them (it doesn't, config parser already breaks them)
-        except ValueError:
-            command, *args = message_content.split()
-        command = command[len(self.config.command_prefix):].lower().strip()
 
         if (message.author.id not in self.agree_list) and command != "agree":
             embed = discord.Embed(tile="Terms of Service Update",
@@ -2465,9 +2472,11 @@ class MusicBot(discord.Client):
     async def schedule_removal(self, member, message="Scheduled the removal of {} from Fresh in 7 days", complain=True, **kwargs):
         if member.id in [job.id.split(" ")[-1] for job in self.jobstore.get_all_jobs()]:
             if complain:
-                await self.safe_send_message(self.report_channel, "{} already scheduled for removal".format(member.mention))
+                await self.safe_send_message(self.server_specific_data[member.server]["report_channel"],
+                                             "{} already scheduled for removal".format(member.mention))
             return
-        await self.safe_send_message(self.report_channel, message.format(member.mention))
+        await self.safe_send_message(self.server_specific_data[member.server]["report_channel"],
+                                     message.format(member.mention))
         self.scheduler.add_job(call_schedule,
                                'date',
                                id=self.get_id_args(self.remove_fresh, member.id),
@@ -2490,19 +2499,25 @@ class MusicBot(discord.Client):
             if user and role:
                 if role in user.roles:
                     await self.remove_roles(user, role)
-                    await self.safe_send_message(self.report_channel, "Removed the fresh role from {}".format(user.mention))
+                    await self.safe_send_message(self.server_specific_data[server]["report_channel"],
+                                                 "Removed the fresh role from {}".format(user.mention))
                 else:
-                    await self.safe_send_message(self.report_channel, "{} has already had Fresh removed from them".format(user.mention))
+                    await self.safe_send_message(self.server_specific_data[server]["report_channel"],
+                                                 "{} has already had Fresh removed from them".format(user.mention))
             else:
-                await self.safe_send_message(self.report_channel, "Something went wrong removing the fresh role from user: {} (user not found or Fresh role not found)".format(user_id))
+                await self.safe_send_message(self.server_specific_data[server]["report_channel"],
+                                             "Something went wrong removing the fresh role from user: {} (user not found or Fresh role not found)".format(user_id))
         except Exception:
             traceback.print_exc()
             if self.config.debug_mode:
-                await self.safe_send_message(self.report_channel, '```\n%s\n```' % traceback.format_exc())
+                await self.safe_send_message(self.server_specific_data[server]["report_channel"],
+                                             '```\n%s\n```' % traceback.format_exc())
             if user:
-                await self.safe_send_message(self.report_channel, "Failed to remove the fresh role from {}".format(user.mention))
+                await self.safe_send_message(self.server_specific_data[server]["report_channel"],
+                                             "Failed to remove the fresh role from {}".format(user.mention))
             else:
-                await self.safe_send_message(self.report_channel, "Failed to remove the fresh role from {}".format(user_id))
+                await self.safe_send_message(self.server_specific_data[server]["report_channel"],
+                                             "Failed to remove the fresh role from {}".format(user_id))
 
     async def cmd_fresh_status(self, channel, server):
         jobs = self.jobstore.get_all_jobs()
@@ -2529,15 +2544,30 @@ class MusicBot(discord.Client):
                 members.append(member.mention)
         return Response(", ".join(members) or "There are no users without a role")
 
-    async def cmd_start_survey(self, channel_mentions):
-        if channel_mentions[0] == self.survey_channel:
-            return Response("There is already a survey running in this channel")
-        self.survey_channel = channel_mentions[0]
-        return Response("Started a survey, responses will be copied to {}".format(self.survey_channel.mention))
+    async def cmd_warn(self, server, author, message, user_mentions, leftover_args):
+        await self.delete_message(message)
+        if len(user_mentions) != 1:
+            return Response("You need to mention a user to warn someone", delete_after=20, reply=True)
+        warned_user = user_mentions[0]
 
-    async def cmd_end_survey(self, channel):
-        self.survey_channel = None
-        await self.safe_send_message(channel, "Stopped all surveys")
+        await self.send_message(warned_user, f"You were warned by {author.mention} for '{' '.join(leftover_args[1:])}'")
+        await self.send_message(self.server_specific_data[server]["warning_channel"], f"{warned_user.mention} was warned by {author.mention} for '{' '.join(leftover_args[1:])}'")
+        role = discord.utils.get(server.roles, name="Muted")
+        await self.add_roles(warned_user, role)
+        embed = discord.Embed(title="Warning",
+                              description=f"User **{warned_user}** has been warned and **muted** by {author.mention}.",
+                              colour=0x3485e7)
+        return Response(embed=embed)
+
+    async def cmd_start_survey(self, server, channel_mentions):
+        if channel_mentions[0] == self.server_specific_data[server]["survey_channel"]:
+            return Response("There is already a survey running in this channel")
+        self.server_specific_data[server]["survey_channel"] = channel_mentions[0]
+        return Response("Started a survey, responses will be copied to {}".format(channel_mentions[0]))
+
+    async def cmd_end_survey(self, server):
+        del self.server_specific_data[server]["survey_channel"]
+        return Response("Stopped all surveys")
 
     async def handle_survey(self, user, channel, message_content):
         if await self.ask_yn(channel,
@@ -2546,7 +2576,7 @@ class MusicBot(discord.Client):
             message_content = user.mention + "`~~~`" + message_content
         else:
             message_content = "`~~~`" + message_content
-        await self.safe_send_message(self.survey_channel, message_content)
+        await self.safe_send_message(self.server_specific_data[self.get_server("277442894904819714")]["survey_channel"], message_content)
         await self.safe_send_message(channel, "Your feedback was sent")
 
     async def ask_yn(self, channel, question, check=lambda message: True):
@@ -2579,8 +2609,8 @@ class MusicBot(discord.Client):
                               colour=0x00CC00)
         embed.set_author(name=member.name,
                          icon_url=member.avatar_url)
-        if member.server.id == self.report_channel.server.id:
-            await self.send_message(self.report_channel, embed=embed)
+        await self.send_message(self.server_specific_data[member.server]["report_channel"],
+                                embed=embed)
 
     async def on_member_remove(self, member):
         embed = discord.Embed(title="Left the server",
@@ -2588,8 +2618,7 @@ class MusicBot(discord.Client):
                               colour=0xCC0000)
         embed.set_author(name=member.name,
                          icon_url=member.avatar_url)
-        if member.server.id == self.report_channel.server.id:
-            await self.send_message(self.report_channel, embed=embed)
+        await self.send_message(self.server_specific_data[member.server]["report_channel"], embed=embed)
 
     async def on_voice_state_update(self, before, after):
         if not all([before, after]):
