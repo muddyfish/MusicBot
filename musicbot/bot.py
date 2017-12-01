@@ -1965,7 +1965,7 @@ class MusicBot(discord.Client):
             else:
                 failed.append(channel.mention)
         await self.send_message(self.server_specific_data[server]["report_channel"],
-                                f"{author.mention} cleaned {deleted} messages across {', '.join(channel.mention for channel in channel_mentions)}")
+                                f"{author.mention} cleaned {deleted} messages across {', '.join(channel.mention for channel in (channel_mentions or [channel]))}")
         return Response(f"Cleaned up {deleted} message{'s' if deleted!=1 else ''}." +
                         (f"\nI do not have manage permissions for {', '.join(failed)}" if failed else ""), delete_after=15)
 
