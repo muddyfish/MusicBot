@@ -1739,6 +1739,12 @@ class MusicBot(discord.Client):
         return Response(':put_litter_in_its_place:', delete_after=20)
 
     async def cmd_top(self, player, queue_id):
+        """
+        Usage:
+            {command_prefix}top
+
+        Move a song to the top of the queue
+        """
         try:
             int(queue_id)
         except:
@@ -1748,6 +1754,19 @@ class MusicBot(discord.Client):
         del entries[int(queue_id)-1]
         entries.appendleft(entry)
         return Response("{} was moved to the top of the queue.".format(entry.title))
+
+    async def cmd_repeat(self, player):
+        """
+        Usage:
+            {command_prefix}repeat
+
+        Adds the current song to the end of the queue
+        """
+        entries = player.playlist.entries
+        if player.current_entry is not None:
+            entries.append(player.current_entry)
+        else:
+            return Response("Cannot repeat a song when there's not one playing")
 
     async def cmd_next(self, player, permissions):
         """
