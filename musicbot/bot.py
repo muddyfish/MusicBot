@@ -476,8 +476,10 @@ class MusicBot(discord.Client):
             name = f'{prefix}{entry.title}'[:128]
             game = discord.Game(name=name,
                                 type=2)
-
-        await self.change_presence(game=game)
+            since = time.time()-player.progress
+        else:
+            since = 0.0
+        await self.change_presence(game=game, since=since)
 
     async def on_server_join(self, server):
         for predicate, future in self.server_listeners:
