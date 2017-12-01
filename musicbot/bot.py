@@ -750,6 +750,7 @@ class MusicBot(discord.Client):
         awsw["report_channel_dj"] = self.get_channel("283362758509199370")
         awsw["warning_channel"] = self.get_channel("308242501096177664")
         awsw["survey_channel"] = self.get_channel("347369267869777920")
+        self.server_specific_data[self.get_server("326474394002259969")]["report_channel"] = self.get_channel("326474544090972162")
 
         print()
 
@@ -1936,7 +1937,7 @@ class MusicBot(discord.Client):
         del player.playlist.entries[remove_id-1]
         return Response(f"Removed `{entry.title.replace('`', '')}` from the queue.")
 
-    async def cmd_clean(self, message, channel, channel_mentions, server, user_mentions, leftover_args):
+    async def cmd_clean(self, author, message, channel, channel_mentions, server, user_mentions, leftover_args):
         """
         Usage:
             {command_prefix}clean [range] @user1 @user2
@@ -1963,8 +1964,10 @@ class MusicBot(discord.Client):
                 deleted += len(await self.purge_from(channel, check=check, limit=search_range, before=message))
             else:
                 failed.append(channel.mention)
+        await self.send_message(self.server_specific_data[server]["report_channel"],
+                                f"{author.mention} cleaned {deleted} messages across {', '.join(channel.mention for channel in channel_mentions)}")
         return Response(f"Cleaned up {deleted} message{'s' if deleted!=1 else ''}." +
-                        f"\nI do not have manage permissions for {', '.join(failed)}" if failed else "", delete_after=15)
+                        (f"\nI do not have manage permissions for {', '.join(failed)}" if failed else ""), delete_after=15)
 
     async def cmd_listids(self, server, author, leftover_args, cat='all'):
         """
