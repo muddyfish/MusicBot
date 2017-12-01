@@ -488,7 +488,7 @@ class MusicBot(discord.Client):
         update = await request.json()
         response = await self.cmd_update(update)
         for server, data in self.server_specific_data.items():
-            await self.safe_send_message(data["report_channel"],
+            await self.safe_send_message(data["report_channel_dj"],
                                          "",
                                          embed=response.embed)
         return web.Response(text="")
