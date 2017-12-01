@@ -2243,6 +2243,11 @@ class MusicBot(discord.Client):
     async def on_message(self, message):
         await self.wait_until_ready()
         message_content = message.content.strip()
+
+        if message_content == "<:Annafridge:310851102746738688>":
+            await self.send_message(message.channel,
+                                    "https://cdn.discordapp.com/attachments/310797828425383936/310874362439925771/Annafridge_small.jpg")
+
         if message.channel.is_private and message.author.id != self.user.id:
             if any("survey_channel" in server.keys() for server in self.server_specific_data.values()):
                 await self.handle_survey(message.author, message.channel, message_content)
