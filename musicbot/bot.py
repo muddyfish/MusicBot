@@ -1946,7 +1946,13 @@ class MusicBot(discord.Client):
         Defaults to all messages.
         """
 
-        search_range = int(next((arg for arg in leftover_args if arg.isnumeric()), 50))
+        search_range = int(next((arg for arg in leftover_args if arg.isnumeric()), None))
+
+        if not (search_range is None or user_mentions):
+            user_mentions = [self.user]
+
+        if search_range is None:
+            search_range = 10 if user_mentions else 100
 
         await self.safe_delete_message(message, quiet=True)
 
