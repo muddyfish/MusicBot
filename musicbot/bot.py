@@ -2585,7 +2585,11 @@ class MusicBot(discord.Client):
             return Response("You need to mention a user to warn someone", delete_after=20, reply=True)
         warned_user = user_mentions[0]
 
-        await self.send_message(warned_user, f"You were warned by {author} for '{' '.join(leftover_args[1:])}'")
+        embed = discord.Embed(title=f"Warning on {server.name}",
+                              description=f"You were warned by {author}",
+                              colour=0x3485e7)
+        embed.add_field(name="Reason", value=' '.join(leftover_args[1:]), inline=False)
+        await self.send_message(warned_user, embed=embed)
         await self.send_message(self.server_specific_data[server]["warning_channel"], f"{warned_user.mention} was warned by {author.mention} for '{' '.join(leftover_args[1:])}'")
         role = discord.utils.get(server.roles, name="Muted")
         await self.add_roles(warned_user, role)
