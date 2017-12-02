@@ -476,7 +476,7 @@ class MusicBot(discord.Client):
             name = f'{prefix}{entry.title}'[:128]
             game = discord.Game(name=name,
                                 type=2)
-            since = int(time.time() * 1000)-player.progress
+            since = int((time.time()-player.progress) * 1000)
         else:
             since = 0.0
         await self.ws.change_presence(game=game, status="online", afk=False, since=since)
