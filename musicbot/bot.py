@@ -1767,8 +1767,8 @@ class MusicBot(discord.Client):
         entries = player.playlist.entries
         if player.current_entry is not None:
             entries.append(player.current_entry)
-            return Response(f"Added **{player.current_entry.title}** to the queue")
-        return Response("Cannot repeat a song when there's not one playing")
+            return Response(f"Added **{player.current_entry.title}** to the queue", delete_after=20)
+        return Response("Cannot repeat a song when there's not one playing", delete_after=30)
 
     async def cmd_next(self, player, permissions):
         """
