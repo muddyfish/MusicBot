@@ -34,3 +34,19 @@ body {
 .no-shadow {
     text-shadow: 0 0px 0 #fff;
 }
+
+.no-hover {
+    background-color: transparent !important;
+}
+
+.dropdown-menu > li > a:hover {
+    background-image: linear-gradient(#23272AE0, #23272AE0);
+}
+
+.dropdown-menu .divider {
+    background-color: #7289DA;
+}
+
+.selectize-dropdown {
+    background-color: #23272A !important;
+}

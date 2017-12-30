@@ -1,16 +1,16 @@
 import asyncio
+import datetime
 import glob
 import inspect
 import json
 import os
 import shlex
-import sys
 import subprocess
+import sys
 import time
 import traceback
 from collections import defaultdict
 from datetime import timedelta
-import datetime
 from functools import wraps
 from io import BytesIO
 from random import choice, shuffle
@@ -18,10 +18,6 @@ from textwrap import dedent
 
 import aiofiles
 import aiohttp
-from aiohttp import web
-import aiohttp_jinja2
-from jinja2 import FileSystemLoader
-
 import discord
 from apscheduler import events
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
@@ -33,17 +29,20 @@ from discord.object import Object
 from discord.voice_client import VoiceClient
 
 from musicbot.config import Config, ConfigDefaults
+from musicbot.db import init_db, Server
 from musicbot.local_song import sort_songs
+from musicbot.oauth2 import Oauth2
 from musicbot.permissions import Permissions, PermissionsDefaults
+from musicbot.permissions import PermissionsExtension as Perm
 from musicbot.player import MusicPlayer
 from musicbot.playlist import Playlist
 from musicbot.utils import load_file, write_file, sane_round_int, paginate, slugify, get_next
+from musicbot.web.web_service import WebService
 from . import downloader
 from . import exceptions
 from .constants import DISCORD_MSG_CHAR_LIMIT
 from .constants import VERSION as BOTVERSION
 from .opus_loader import load_opus_lib
-from musicbot.db import init_db, Server, User, PermissionsGroup
 
 load_opus_lib()
 
@@ -75,6 +74,30 @@ class Response:
         self.delete_after = delete_after
 
 
+def protected(func):
+    @wraps(func)
+    async def wrapper(self, *args, **kwargs):
+        if wrapper.predicate(self, _get_variable('message').author):
+            return await func(self, *args, **kwargs)
+        else:
+            raise exceptions.PermissionsError("Only trusted users can use this command", expire_in=30)
+    wrapper.predicate = lambda bot, author: bot.permissions.is_trusted(author)
+    return wrapper
+
+
+def requires_perms(*perms):
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(self, *args, **kwargs):
+            if wrapper.predicate(self, _get_variable('message').author):
+                return await func(self, *args, **kwargs)
+            else:
+                raise exceptions.PermissionsError("Only trusted users can use this command", expire_in=30)
+        wrapper.predicate = lambda bot, author: bot.permissions.is_trusted(author)
+        return wrapper
+    return decorator
+
+
 class MusicBot(discord.Client):
     cycle_length = 100
     sleep_time = 0.1
@@ -90,7 +113,7 @@ class MusicBot(discord.Client):
         self.voice_client_move_lock = asyncio.Lock()
 
         self.config = Config(config_file)
-        self.permissions = Permissions(perms_file, grant_all=[])
+        self.permissions = Permissions(self, perms_file)
         self.agreelist_file = agreelist_file
         with open(agreelist_file) as agreelist_f:
             self.agree_list = set(json.load(agreelist_f))
@@ -127,36 +150,6 @@ class MusicBot(discord.Client):
         self.scheduler.print_jobs()
 
         self.should_restart = False
-
-        self.app = web.Application()
-
-        aiohttp_jinja2.setup(self.app, loader=FileSystemLoader("./template/"))
-        self.app.router.add_get('/static/css/generic.css', self.render_generic)
-        self.app.router.add_static("/static/", "./static")
-
-        self.app.router.add_post('/update', self.handle_update)
-        self.app.router.add_get('/update', self.handle_update)
-        self.app.router.add_get('/setup', self.handle_setup_server)
-        self.handler = self.app.make_handler()
-        self.web_server = self.loop.create_server(self.handler,
-                                                  MusicBot.host,
-                                                  MusicBot.port)
-        self.srv, startup_res = self.loop.run_until_complete(asyncio.gather(self.web_server,
-                                                             self.app.startup(),
-                                                             loop=self.loop))
-
-    def owner_only(func):
-        @wraps(func)
-        async def wrapper(self, *args, **kwargs):
-            # Only allow the owner to use these commands
-            orig_msg = _get_variable('message')
-
-            if not orig_msg or orig_msg.author.id == self.owner.id:
-                return await func(self, *args, **kwargs)
-            else:
-                raise exceptions.PermissionsError("only the owner can use this command", expire_in=30)
-
-        return wrapper
 
     @staticmethod
     def _fixg(x, dp=2):
@@ -211,15 +204,14 @@ class MusicBot(discord.Client):
         if self.config.delete_invoking:
             await self.safe_delete_message(message, quiet=quiet)
 
-    async def _check_ignore_non_voice(self, msg):
-        vc = msg.server.me.voice_channel
+    async def _check_ignore_non_voice(self, author):
+        vc = author.server.me.voice_channel
 
         # If we've connected to a voice chat and we're in the same voice channel
-        if not vc or vc == msg.author.voice_channel:
+        if not vc or vc == author.voice_channel:
             return True
         else:
-            raise exceptions.PermissionsError(
-                "you cannot use this command when not in the voice channel (%s)" % vc.name, expire_in=30)
+           return f"you cannot use this command when not in the voice channel ({vc.name})"
 
     async def generate_invite_link(self, *, permissions=None, server=None):
         return discord.utils.oauth_url(self.user.id, permissions=permissions, server=server)
@@ -486,60 +478,6 @@ class MusicBot(discord.Client):
             if predicate(server):
                 future.set_result(server)
 
-    async def handle_update(self, request):
-        update = await request.json()
-        response = await self.cmd_update(update)
-        for server, data in self.server_specific_data.items():
-            await self.safe_send_message(data["report_channel_dj"],
-                                         "",
-                                         embed=response.embed)
-        return web.Response(text="")
-
-    async def render_generic(self, request):
-        response = web.Response(status=200)
-        response.content_type = 'text/css'
-        response.charset = "utf-8"
-        response.text = aiohttp_jinja2.render_string("generic.css", request, {"base_url": self.config.url})
-        return response
-
-    @aiohttp_jinja2.template('setup.jinja2')
-    async def handle_setup_server(self, request):
-        args = request.GET
-        code = args["code"]
-
-        data = {
-            'client_id': self.user.id,
-            'client_secret': self.config.client_secret,
-            'grant_type': 'authorization_code',
-            'code': code,
-            'redirect_uri': f"{self.config.url}/setup"
-        }
-
-        return {"guild": self.get_server("277442894904819714"),
-                "base_url": self.config.url,
-                "specific_info": self.server_specific_data[self.get_server("277442894904819714")]}
-
-        async with self.aiosession.post("https://discordapp.com/api/v6/oauth2/token",
-                                        data=data,
-                                        headers={"Content-Type": "application/x-www-form-urlencoded"}) as res:
-            token = await res.json()
-            scopes = token["scope"].split()
-            access_token = token["access_token"]
-            refresh_token = token["refresh_token"]
-            guild = token["guild"]
-            guild_id = guild["id"]
-            assert guild_id == args["guild_id"]
-            if guild_id not in (server.id for server in self.servers):
-                future = asyncio.Future(loop=self.loop)
-                self.server_listeners.append((lambda server: server.id == guild_id, future))
-                server = await asyncio.wait_for(future, 0, loop=self.loop)
-            else:
-                server = next(server for server in self.servers if server.id == guild_id)
-            print(token, server)
-        permissions = args["permissions"]
-        await self.leave_server(self.get_server(guild_id))
-        return {"guild": server}
-
     async def safe_send_message(self, dest, content=None, *, embed=None, tts=False, expire_in=0, also_delete=None, quiet=False):
         msg = None
         try:
@@ -606,11 +544,11 @@ class MusicBot(discord.Client):
         except:
             pass
 
-        self.srv.close()
-        self.loop.run_until_complete(self.srv.wait_closed())
-        self.loop.run_until_complete(self.app.shutdown())
-        self.loop.run_until_complete(self.handler.finish_connections(60.0))
-        self.loop.run_until_complete(self.app.cleanup())
+        self.web_service.srv.close()
+        self.loop.run_until_complete(self.web_service.srv.wait_closed())
+        self.loop.run_until_complete(self.web_service.app.shutdown())
+        self.loop.run_until_complete(self.web_service.handler.finish_connections(60.0))
+        self.loop.run_until_complete(self.web_service.app.cleanup())
 
         pending = asyncio.Task.all_tasks()
         gathered = asyncio.gather(*pending)
@@ -621,6 +559,13 @@ class MusicBot(discord.Client):
             gathered.exception()
         except:
             pass
+
+    def get_commands(self):
+        cmds = {}
+        for attr in dir(self):
+            if attr.startswith("cmd_"):
+                cmds[attr[4:]] = getattr(self, attr)
+        return cmds
 
     async def get_owner(self):
         return (await self.application_info()).owner
@@ -747,6 +692,9 @@ class MusicBot(discord.Client):
         print("  Downloaded songs will be %s" % ['deleted', 'saved'][self.config.save_videos])
         print()
 
+        self.oauth2_handler = Oauth2(self)
+        self.web_service = WebService(self, MusicBot.host, MusicBot.port)
+
         awsw = self.server_specific_data[self.get_server("277442894904819714")]
         awsw["report_channel"] = self.get_channel("359394374553042944")
         awsw["report_channel_dj"] = self.get_channel("283362758509199370")
@@ -759,175 +707,23 @@ class MusicBot(discord.Client):
         if self.config.autojoin_channels:
             await self._autojoin_channels(autojoin_channels)
 
-        await self.db_load()
-
         await self.check_new_members()
 
-    async def db_load(self):
-        for server in self.servers:
-            if self.get_server_db(server) is None:
-                pass
-
     def get_server_db(self, server):
-        return self.session.query(Server).filter(Server.discord_id == server.id).first()
+        if not isinstance(server, str):
+            server = server.id
+        server_data = self.session.query(Server).filter(Server.discord_id == server).first()
+        if server_data is None:
+            server_data = Server(discord_id=server,
+                                 command_prefix="!",
+                                 volume=0.15,
+                                 )
+            self.session.add(server_data)
+            self.session.commit()
+        server_data.setup(self)
+        return server_data
 
-    async def configure_new_server(self, server):
-        enable_fresh = await self.ask_yn(channel,
-                                         "Do you want to enable the removal of a 'new user' role 7 days after joining "
-                                         "the server?")
-        while not server.me.server_permissions.manage_roles and enable_fresh:
-            enable_fresh = await self.ask_yn(channel, "I need to be able to manage roles for this.\n"
-                                                      "Please give me manage  roles and select 🇾 or select 🇳 and I "
-                                                      "won't be able to do this.")
-        regular_role = fresh_role = None
-        if enable_fresh:
-            await self.safe_send_message(channel, "Now I've got to find your role for regulars.")
-            regular_role = await self.choose_role(channel)
-            await self.safe_send_message(channel, "Next is the role that new users get assigned for a week after the "
-                                                  "regular role is assigned.")
-            fresh_role = await self.choose_role(channel)
-        auto_connect = await self.ask_yn(channel, "Do you want me to automatically connect to a voice channel in case "
-                                                  "I crash and restart?")
-        connect_channel = None
-        if auto_connect:
-            connect_channel = await self.get_voice_channel(channel)
-            await self.safe_send_message(channel, f"Set autojoin channel to {connect_channel.mention}")
-        await self.safe_send_message(channel, "Please choose the maximum skip votes to pass a skip")
-        while 1:
-            message = await self.wait_for_message(channel=channel,
-                                                  check=lambda message: message.author.id != self.user.id)
-            if message.content.isdigit():
-                skip_max = int(message.content)
-                break
-            await self.safe_send_message(channel, "Please enter a number")
-        await self.safe_send_message(channel, "Please choose the skip ratio to skip otherwise. (In the form 1/3)")
-        while 1:
-            message = await self.wait_for_message(channel=channel,
-                                                  check=lambda message: message.author.id != self.user.id)
-            digits = message.content.split("/")
-            if len(digits) == 2:
-                if all(map(str.isdigit, digits)):
-                    skip_ratio_num, skip_ratio_den = map(int, digits)
-                    if skip_ratio_num / skip_ratio_den < 1:
-                        break
-            await self.safe_send_message(channel, "Please respond in a fractional form (1/3, 3/5 and 1/2 would all be valid. 4/3, 2/2 are not.)")
-        files = [os.path.split(path)[-1][:-4] for path in glob.glob(os.path.join("playlists", "*.txt"))]
-        files = files[:19]
-        emotes = ['0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'[i]+"\u20E3" if i<10 else chr(i+127452) for i in range(36)]
-        joined_files = "\n".join(f"{emotes[i]}: {f}" for i, f in enumerate(["No autoplaylist"] + files))
-        message = await self.safe_send_message(channel, "I come with a couple built-in playlists.\n"
-                                                        "Please react with the one you want to use by default:\n"
-                                                       f"{joined_files}")
-        for i in range(len(files)+1):
-            await self.add_reaction(message, f"{emotes[i]}")
-        react, user = await self.wait_for_reaction([emotes[i] for i in range(len(files)+1)],
-                                                     message=message,
-                                                     check=lambda reaction, user: user.id != self.user.id)
-        index = emotes.index(react.emoji)
-        autoplaylist = None
-        if index:
-            autoplaylist = files[index-1]
-        await self.safe_send_message(channel, "Please choose the prefix for commands (one character)")
-        while 1:
-            message = await self.wait_for_message(channel=channel,
-                                                  check=lambda message: message.author.id != self.user.id)
-            if len(message.content) == 1:
-                prefix = message.content
-                break
-            await self.safe_send_message(channel, "Please enter a single character")
-
-        #server = Server(discord_id=channel.server.id)
-
-    async def choose_role(self, channel):
-        await self.safe_send_message(channel, "Either mention a role or type the name of a role.")
-        while True:
-            message = await self.wait_for_message(channel=channel,
-                                                  check=lambda message: message.author.id != self.user.id)
-            if len(message.mentions) == 1:
-                return message.mentions[0]
-            elif len(message.mentions) == 0:
-                roles = []
-                for server_role in channel.server.roles:
-                    if server_role.name.lower() == message.content.lower():
-                        roles.append(server_role)
-
-                if len(roles) == 1:
-                    return roles[0]
-                elif len(roles) >= 2:
-                    message = await self.safe_send_message(channel,
-                                                           "Multiple roles were found with that name.\n"
-                                                           "Please move the role you wish to be the regular role below the rest.\n"
-                                                           "You may return the role to it's original position later\n"
-                                                           "Once you are happy, react with 🇾")
-                    await self.add_reaction(message, "🇾")
-                    await self.wait_for_reaction("🇾",
-                                                 message=message,
-                                                 check=lambda reaction, user: user.id != self.user.id)
-                    return max(roles, key=lambda role: role.position)
-                else:
-                    await self.safe_send_message(channel, "No roles were found with that name.")
-            else:
-                await self.safe_send_message(channel, "You mentioned multiple roles. Please only mention a single role "
-                                                      "or a name of a role.")
-
-    async def get_sendable_channel(self, current):
-        is_valid = False
-        while not is_valid:
-            mentions = []
-            while len(mentions) != 1:
-                message = await self.wait_for_message(channel=current,
-                                                      check=lambda message: self.has_manage_server(message.author))
-                mentions = message.channel_mentions
-                if len(mentions) != 1:
-                    await self.safe_send_message(current, "Please mention a single channel to continue setup")
-            channel = mentions[0]
-            if channel not in (await self.get_sendable_channels(current.server)):
-                await self.send_message(current, f"I cannot read and send messages in {channel.mention}")
-            else:
-                is_valid = True
-        return channel
-
-    async def get_voice_channel(self, current):
-        def verify_channel(reaction, user):
-            if user.id == self.user.id:
-                return False
-            channel = user.voice_channel
-            if not channel:
-                asyncio.ensure_future(self.send_message(current, "Please remove your reaction, connect to a voice "
-                                                                 "channel and then add it again."))
-                return False
-            permissions = channel.permissions_for(current.server.me)
-            if permissions.connect and permissions.speak:
-                return True
-            asyncio.ensure_future(self.send_message(current, f"I cannot connect and speak in {channel.mention}.\n"
-                                                             f"Please remove your reaction and move to a channel I can "
-                                                             f"connect and speak"))
-            return False
-
-        message = await self.send_message(current, "Please join the voice channel you to select. I must have connect "
-                                                   "and speak permissions in that channel. Once you're done, react "
-                                                   "with 🇾")
-        await self.add_reaction(message, "🇾")
-        react, user = await self.wait_for_reaction("🇾",
-                                                   message=message,
-                                                   check=verify_channel)
-        return user.voice_channel
-
-    async def get_sendable_channels(self, server):
-        sendable_channels = []
-        for channel in server.channels:
-            if channel.type == discord.ChannelType.text:
-                permissions = channel.permissions_for(server.me)
-                if permissions.send_messages and permissions.read_messages:
-                    sendable_channels.append(channel)
-        return sendable_channels
-
-    def has_manage_server(self, user):
-        if user.id == self.user.id:
-            return False
-        return user.server_permissions.manage_server
-
-    async def cmd_help(self, command=None):
+    async def cmd_help(self, author, command=None):
         """
         Usage:
             {command_prefix}help [command]
@@ -951,63 +747,14 @@ class MusicBot(discord.Client):
             helpmsg = "**Commands**\n```"
             commands = []
 
-            for att in dir(self):
-                if att.startswith('cmd_') and att != 'cmd_help':
-                    command_name = att.replace('cmd_', '').lower()
-                    commands.append("{}{}".format(self.config.command_prefix, command_name))
+            for cmd, func in self.get_commands().items():
+                if cmd != "help" and await self.permissions.can_use_command(author, func, ignore_voice=True) is True:
+                    commands.append("{}{}".format(self.config.command_prefix, cmd))
 
             helpmsg += ", ".join(commands)
             helpmsg += "```"
-            helpmsg += "https://github.com/SexualRhinoceros/MusicBot/wiki/Commands-list"
 
             return Response(helpmsg, reply=True, delete_after=60)
-
-    async def cmd_blacklist(self, user_mentions, option):
-        """
-        Usage:
-            {command_prefix}blacklist [ + | - | add | remove ] @UserName [@UserName2 ...]
-
-        Add or remove users to the blacklist.
-        Blacklisted users are forbidden from using bot commands.
-        """
-
-        if not user_mentions:
-            raise exceptions.CommandError("No users listed.", expire_in=20)
-
-        if option not in ['+', '-', 'add', 'remove']:
-            raise exceptions.CommandError(
-                'Invalid option "%s" specified, use +, -, add, or remove' % option, expire_in=20
-            )
-
-        for user in user_mentions.copy():
-            if user.id == (await self.get_owner()).id:
-                print("[Commands:Blacklist] The owner cannot be blacklisted.")
-                user_mentions.remove(user)
-
-        old_len = len(self.blacklist)
-
-        if option in ['+', 'add']:
-            self.blacklist.update(user.id for user in user_mentions)
-
-            write_file(self.config.blacklist_file, self.blacklist)
-
-            return Response(
-                '%s users have been added to the blacklist' % (len(self.blacklist) - old_len),
-                reply=True, delete_after=10
-            )
-
-        else:
-            if self.blacklist.isdisjoint(user.id for user in user_mentions):
-                return Response('none of those users are in the blacklist.', reply=True, delete_after=10)
-
-            else:
-                self.blacklist.difference_update(user.id for user in user_mentions)
-                write_file(self.config.blacklist_file, self.blacklist)
-
-                return Response(
-                    '%s users have been removed from the blacklist' % (old_len - len(self.blacklist)),
-                    reply=True, delete_after=10
-                )
 
     async def cmd_id(self, author, user_mentions):
         """
@@ -1035,6 +782,7 @@ class MusicBot(discord.Client):
                         reply=True,
                         delete_after=30)
 
+    @requires_perms(Perm.MUSIC)
     async def cmd_play(self, player, channel, author, message, permissions, leftover_args, song_url=""):
         """
         Usage:
@@ -1234,6 +982,7 @@ class MusicBot(discord.Client):
 
         return Response(reply_text, delete_after=30)
 
+    @protected
     async def cmd_play_local(self, player, author, channel, path):
         """
         Usage: Play a file or files given a local path.
@@ -1244,6 +993,7 @@ class MusicBot(discord.Client):
             files = glob.glob(path, recursive=True)
         return await self._cmd_queue_song_list(player, author, channel, files)
 
+    @requires_perms(Perm.MUSIC)
     async def cmd_awsw(self, player, author, channel, song_id):
         if not song_id.isdigit():
             return Response("Must be the soundtrack number (44 - Spring).")
@@ -1251,15 +1001,6 @@ class MusicBot(discord.Client):
         if not files:
             return Response("No file found with that id")
         return await self._cmd_queue_song_list(player, author, channel, files)
-
-    async def cmd_queue_playlist(self, player, author, channel, path):
-        """
-        Usage: Add a predefined playlist to the queue.
-        """
-        safe_path = slugify(path)
-        playlist = load_file(os.path.join("playlists", safe_path+".txt"))
-        song_urls = self.parse_playlist(playlist)
-        return await self._cmd_queue_song_list(player, author, channel, song_urls)
 
     async def cmd_get_playlists(self, path=None):
         """
@@ -1274,6 +1015,7 @@ class MusicBot(discord.Client):
         song_urls = [os.path.split(path)[-1] for path in self.parse_playlist(playlist)]
         return Response("\n".join(song_urls), delete_after=35)
 
+    @protected
     async def cmd_create_playlist_search(self, player, channel, author, playlist):
         name, *songs = playlist.split("\n")
         name = slugify(name)
@@ -1317,12 +1059,14 @@ class MusicBot(discord.Client):
         write_file(os.path.join("playlists", name+".txt"), urls)
         await self.safe_send_message(channel, "Added playlist and saved as {}".format(name))
 
+    @protected
     async def cmd_create_playlist_urls(self, channel, playlist):
         name, *urls = playlist.split("\n")
         name = slugify(name)
         write_file(os.path.join("playlists", name+".txt"), urls)
         await self.safe_send_message(channel, "Added playlist and saved as {}".format(name))
 
+    @protected
     async def cmd_clear_audiocache(self):
         errors = []
         for f in os.listdir(self.downloader.download_folder):
@@ -1341,6 +1085,7 @@ class MusicBot(discord.Client):
             return Response(embed=embed)
         return Response("The audiocache was cleared successfully")
 
+    @requires_perms(Perm.MUSIC_ADMIN)
     async def cmd_set_autoplaylist(self, server, path):
         """
         Set the autoplaylist to a playlist
@@ -1482,6 +1227,7 @@ class MusicBot(discord.Client):
         return Response("Enqueued {} songs to be played in {} seconds".format(
             songs_added, self._fixg(ttime, 1)), delete_after=30)
 
+    @requires_perms(Perm.MUSIC)
     async def cmd_search(self, player, channel, author, message, permissions, leftover_args):
         """
         Usage:
@@ -1640,6 +1386,7 @@ class MusicBot(discord.Client):
                 delete_after=30
             )
 
+    @requires_perms(Perm.MUSIC_ADMIN)
     async def cmd_summon(self, channel, author):
         """
         Usage:
@@ -1680,6 +1427,7 @@ class MusicBot(discord.Client):
 
         await self.on_player_finished_playing(player)
 
+    @requires_perms(Perm.MUSIC_ADMIN)
     async def cmd_pause(self, player):
         """
         Usage:
@@ -1694,6 +1442,7 @@ class MusicBot(discord.Client):
         else:
             raise exceptions.CommandError('Player is not playing.', expire_in=30)
 
+    @requires_perms(Perm.MUSIC_ADMIN)
     async def cmd_resume(self, player):
         """
         Usage:
@@ -1707,6 +1456,7 @@ class MusicBot(discord.Client):
         else:
             raise exceptions.CommandError('Player is not paused.', expire_in=30)
 
+    @requires_perms(Perm.MUSIC_ADMIN)
     async def cmd_shuffle(self, channel, player):
         """
         Usage:
@@ -1729,6 +1479,7 @@ class MusicBot(discord.Client):
         await self.safe_delete_message(hand, quiet=True)
         return Response(":ok_hand:", delete_after=15)
 
+    @requires_perms(Perm.MUSIC_ADMIN)
     async def cmd_clear(self, player):
         """
         Usage:
@@ -1740,6 +1491,7 @@ class MusicBot(discord.Client):
         player.playlist.clear()
         return Response(':put_litter_in_its_place:', delete_after=20)
 
+    @requires_perms(Perm.MUSIC_ADMIN)
     async def cmd_top(self, player, queue_id):
         """
         Usage:
@@ -1757,6 +1509,7 @@ class MusicBot(discord.Client):
         entries.appendleft(entry)
         return Response("{} was moved to the top of the queue.".format(entry.title))
 
+    @requires_perms(Perm.MUSIC_ADMIN)
     async def cmd_repeat(self, player):
         """
         Usage:
@@ -1770,6 +1523,7 @@ class MusicBot(discord.Client):
             return Response(f"Added **{player.current_entry.title}** to the queue", delete_after=20)
         return Response("Cannot repeat a song when there's not one playing", delete_after=30)
 
+    @requires_perms(Perm.MUSIC_ADMIN)
     async def cmd_next(self, player, permissions):
         """
         Usage:
@@ -1782,6 +1536,7 @@ class MusicBot(discord.Client):
             return Response("The next song will start playing shortly", delete_after=10)
         return Response("You don't have permission to use this command")
 
+    @requires_perms(Perm.MUSIC_ADMIN)
     async def cmd_skip(self, player, author, message, voice_channel):
         """
         Usage:
@@ -1846,6 +1601,7 @@ class MusicBot(discord.Client):
                 delete_after=20
             )
 
+    @requires_perms(Perm.MUSIC_ADMIN)
     async def cmd_volume(self, player, new_volume=None):
         """
         Usage:
@@ -1933,6 +1689,7 @@ class MusicBot(discord.Client):
                               colour=0x3485e7)
         return Response(embed=embed, delete_after=60)
 
+    @requires_perms(Perm.MUSIC_ADMIN)
     async def cmd_remove_queue(self, player, remove_id):
         """
         Usage:
@@ -1958,6 +1715,7 @@ class MusicBot(discord.Client):
         del player.playlist.entries[remove_id-1]
         return Response(f"Removed `{entry.title.replace('`', '')}` from the queue.")
 
+    @requires_perms(Perm.ADMIN)
     async def cmd_clean(self, author, message, channel, channel_mentions, server, user_mentions, leftover_args):
         """
         Usage:
@@ -1996,6 +1754,7 @@ class MusicBot(discord.Client):
         return Response(f"Cleaned up {deleted} message{'s' if deleted!=1 else ''}." +
                         (f"\nI do not have manage permissions for {', '.join(failed)}" if failed else ""), delete_after=15)
 
+    @requires_perms(Perm.ADMIN)
     async def cmd_listids(self, server, author, leftover_args, cat='all'):
         """
         Usage:
@@ -2072,8 +1831,7 @@ class MusicBot(discord.Client):
         await self.send_message(author, '\n'.join(lines))
         return Response(":mailbox_with_mail:", delete_after=20)
 
-
-    @owner_only
+    @protected
     async def cmd_setname(self, leftover_args, name):
         """
         Usage:
@@ -2092,7 +1850,7 @@ class MusicBot(discord.Client):
 
         return Response(":ok_hand:", delete_after=20)
 
-    @owner_only
+    @protected
     async def cmd_setnick(self, server, channel, leftover_args, nick):
         """
         Usage:
@@ -2113,7 +1871,7 @@ class MusicBot(discord.Client):
 
         return Response(":ok_hand:", delete_after=20)
 
-    @owner_only
+    @protected
     async def cmd_set_avatar(self, message, url=None):
         """
         Usage:
@@ -2138,6 +1896,7 @@ class MusicBot(discord.Client):
 
         return Response(":ok_hand:", delete_after=20)
 
+    @requires_perms(Perm.MUSIC_ADMIN)
     async def cmd_disconnect(self, server):
         """
         Usage:
@@ -2147,6 +1906,7 @@ class MusicBot(discord.Client):
         await self.disconnect_voice_client(server)
         return Response(":hear_no_evil:", delete_after=20)
 
+    @protected
     async def cmd_restart(self, channel):
         """
         Usage:
@@ -2157,6 +1917,7 @@ class MusicBot(discord.Client):
         await self.disconnect_all_voice_clients()
         raise exceptions.RestartSignal
 
+    @protected
     async def cmd_update(self, update=None):
         """
         Usage:
@@ -2181,6 +1942,7 @@ class MusicBot(discord.Client):
         self.should_restart = True
         return Response(embed=embed)
 
+    @protected
     async def cmd_shutdown(self, channel):
         """
         Usage:
@@ -2229,7 +1991,7 @@ class MusicBot(discord.Client):
                         delete_after=10,
                         reply=True)
 
-    async def alt_cmd_iam(self, author, role_name, server):
+    async def cmd_iam(self, author, role_name, server):
         for role in server.roles:
             if role.name.lower() == role_name.lower():
                 if role.id not in self.config.giveable_roles:
@@ -2248,7 +2010,7 @@ class MusicBot(discord.Client):
                         delete_after=20,
                         reply=True)
 
-    async def alt_cmd_iamn(self, author, role_name, server):
+    async def cmd_iamn(self, author, role_name, server):
         for role in server.roles:
             if role.name.lower() == role_name.lower():
                 if role.id not in self.config.giveable_roles:
@@ -2267,6 +2029,53 @@ class MusicBot(discord.Client):
                         delete_after=20,
                         reply=True)
 
+    @requires_perms(Perm.ADMIN)
+    async def cmd_fresh_status(self, channel, server):
+        jobs = self.jobstore.get_all_jobs()
+        rtn = []
+        for job in jobs:
+            user_id, next_run_time = job.id.split()[-1], job.next_run_time
+            user = discord.utils.get(server.members, id=user_id)
+            if user:
+                rtn.append("{}: {}".format(
+                    user.mention,
+                    next_run_time.strftime("%Y-%m-%d %H:%M:%S %z")))
+            else:
+                rtn.append("{}: {} (Left server)".format(
+                    (await self.get_user_info(user_id)).mention,
+                    next_run_time.strftime("%Y-%m-%d %H:%M:%S %z")
+                ))
+        await self.safe_send_message(channel, "\n".join(rtn))
+
+    @requires_perms(Perm.ADMIN)
+    async def cmd_new_users(self, server):
+        await self.request_offline_members(server)
+        members = []
+        for member in server.members:
+            if len(member.roles) == 1:
+                members.append(member.mention)
+        return Response(", ".join(members) or "There are no users without a role")
+
+    @requires_perms(Perm.ADMIN)
+    async def cmd_warn(self, server, author, message, user_mentions, leftover_args):
+        await self.delete_message(message)
+        if len(user_mentions) != 1:
+            return Response("You need to mention a user to warn someone", delete_after=20, reply=True)
+        warned_user = user_mentions[0]
+
+        embed = discord.Embed(title=f"Warning on {server.name}",
+                              description=f"You were warned by {author}",
+                              colour=0x3485e7)
+        embed.add_field(name="Reason", value=' '.join(leftover_args[1:]), inline=False)
+        await self.send_message(warned_user, embed=embed)
+        await self.send_message(self.server_specific_data[server]["warning_channel"], f"{warned_user.mention} was warned by {author.mention} for '{' '.join(leftover_args[1:])}'")
+        role = discord.utils.get(server.roles, name="Muted")
+        await self.add_roles(warned_user, role)
+        embed = discord.Embed(title="Warning",
+                              description=f"User **{warned_user}** has been warned and **muted** by {author.mention}.",
+                              colour=0x3485e7)
+        return Response(embed=embed)
+
     async def on_message(self, message):
         await self.wait_until_ready()
         message_content = message.content.strip()
@@ -2279,15 +2088,8 @@ class MusicBot(discord.Client):
             if any("survey_channel" in server.keys() for server in self.server_specific_data.values()):
                 await self.handle_survey(message.author, message.channel, message_content)
 
-        uses_alternate = message_content.startswith(self.config.alternate_command_prefix)
-        if uses_alternate:
-            other_bot = message.server.get_member(user_id=self.config.other_bot)
-            if other_bot:
-                if other_bot.status != Status.offline:
-                    return
         if not message_content.startswith(self.config.command_prefix):
-            if not uses_alternate:
-                return
+            return
 
         try:
             command, *args = shlex.split(message_content)
@@ -2298,13 +2100,8 @@ class MusicBot(discord.Client):
         if command == "warn":
             #Horrible hack here
             pass
-
-        elif uses_alternate:
-            if self.config.alternate_bound_channels and message.channel.id not in self.config.alternate_bound_channels and not message.channel.is_private:
-                return
-        else:
-            if self.config.bound_channels and message.channel.id not in self.config.bound_channels and not message.channel.is_private:
-                return  # if I want to log this I just move it under the prefix check
+        elif self.config.bound_channels and message.channel.id not in self.config.bound_channels and not message.channel.is_private:
+            return  # if I want to log this I just move it under the prefix check
 
         if (message.author.id not in self.agree_list) and command != "agree":
             embed = discord.Embed(tile="Terms of Service Update",
@@ -2326,27 +2123,20 @@ class MusicBot(discord.Client):
             elif command != 'joinserver':
                 await self.send_message(message.channel, 'You cannot use this bot in private messages.')
                 return
-            else:
-                self.safe_print("[User blacklisted] {0.id}/{0.name} ({1})".format(message.author, message_content))
-                return
         else:
             self.safe_print("[Command] {0.id}/{0.name} ({1})".format(message.author, message_content))
-        if uses_alternate:
-            handler = getattr(self, 'alt_cmd_%s' % command, None)
-        else:
-            handler = getattr(self, 'cmd_%s' % command, None)
+        handler = getattr(self, 'cmd_%s' % command, None)
         if not handler:
             return
-
-        user_permissions = self.permissions.for_user(message.author)
 
         argspec = inspect.signature(handler)
         params = argspec.parameters.copy()
 
         # noinspection PyBroadException
         try:
-            if user_permissions.ignore_non_voice and command in user_permissions.ignore_non_voice:
-                await self._check_ignore_non_voice(message)
+            has_perms = await self.permissions.can_use_command(message.author, handler)
+            if has_perms is not True:
+                raise exceptions.PermissionsError(has_perms, expire_in=20)
 
             handler_kwargs = {}
             if params.pop('message', None):
@@ -2365,7 +2155,7 @@ class MusicBot(discord.Client):
                 handler_kwargs['player'] = await self.get_player(message.channel)
 
             if params.pop('permissions', None):
-                handler_kwargs['permissions'] = user_permissions
+                handler_kwargs['permissions'] = self.permissions.for_user(message.author)
 
             if params.pop('user_mentions', None):
                 handler_kwargs['user_mentions'] = list(map(message.server.get_member, message.raw_mentions))
@@ -2392,17 +2182,6 @@ class MusicBot(discord.Client):
                     arg_value = args.pop(0)
                     handler_kwargs[key] = arg_value
                     params.pop(key)
-
-            if message.author.id != self.owner.id:
-                if user_permissions.command_whitelist and command not in user_permissions.command_whitelist:
-                    raise exceptions.PermissionsError(
-                        "This command is not enabled for your group (%s)." % user_permissions.name,
-                        expire_in=20)
-
-                elif user_permissions.command_blacklist and command in user_permissions.command_blacklist:
-                    raise exceptions.PermissionsError(
-                        "This command is disabled for your group (%s)." % user_permissions.name,
-                        expire_in=20)
 
             if params:
                 docs = getattr(handler, '__doc__', None)
@@ -2500,10 +2279,6 @@ class MusicBot(discord.Client):
                     await self.remove_reaction(channel_message, emote, channel.server.me)
             return
 
-    async def cmd_remove_fresh(self, message):
-        for user in message.mentions:
-            await self.remove_fresh(user.id)
-
     async def schedule_removal(self, member, message="Scheduled the removal of {} from Fresh in 7 days", complain=True, **kwargs):
         if member.id in [job.id.split(" ")[-1] for job in self.jobstore.get_all_jobs()]:
             if complain:
@@ -2554,60 +2329,6 @@ class MusicBot(discord.Client):
                 await self.safe_send_message(self.server_specific_data[server]["report_channel"],
                                              "Failed to remove the fresh role from {}".format(user_id))
 
-    async def cmd_fresh_status(self, channel, server):
-        jobs = self.jobstore.get_all_jobs()
-        rtn = []
-        for job in jobs:
-            user_id, next_run_time = job.id.split()[-1], job.next_run_time
-            user = discord.utils.get(server.members, id=user_id)
-            if user:
-                rtn.append("{}: {}".format(
-                    user.mention,
-                    next_run_time.strftime("%Y-%m-%d %H:%M:%S %z")))
-            else:
-                rtn.append("{}: {} (Left server)".format(
-                    (await self.get_user_info(user_id)).mention,
-                    next_run_time.strftime("%Y-%m-%d %H:%M:%S %z")
-                ))
-        await self.safe_send_message(channel, "\n".join(rtn))
-
-    async def cmd_new_users(self, server):
-        await self.request_offline_members(server)
-        members = []
-        for member in server.members:
-            if len(member.roles) == 1:
-                members.append(member.mention)
-        return Response(", ".join(members) or "There are no users without a role")
-
-    async def cmd_warn(self, server, author, message, user_mentions, leftover_args):
-        await self.delete_message(message)
-        if len(user_mentions) != 1:
-            return Response("You need to mention a user to warn someone", delete_after=20, reply=True)
-        warned_user = user_mentions[0]
-
-        embed = discord.Embed(title=f"Warning on {server.name}",
-                              description=f"You were warned by {author}",
-                              colour=0x3485e7)
-        embed.add_field(name="Reason", value=' '.join(leftover_args[1:]), inline=False)
-        await self.send_message(warned_user, embed=embed)
-        await self.send_message(self.server_specific_data[server]["warning_channel"], f"{warned_user.mention} was warned by {author.mention} for '{' '.join(leftover_args[1:])}'")
-        role = discord.utils.get(server.roles, name="Muted")
-        await self.add_roles(warned_user, role)
-        embed = discord.Embed(title="Warning",
-                              description=f"User **{warned_user}** has been warned and **muted** by {author.mention}.",
-                              colour=0x3485e7)
-        return Response(embed=embed)
-
-    async def cmd_start_survey(self, server, channel_mentions):
-        if channel_mentions[0] == self.server_specific_data[server]["survey_channel"]:
-            return Response("There is already a survey running in this channel")
-        self.server_specific_data[server]["survey_channel"] = channel_mentions[0]
-        return Response("Started a survey, responses will be copied to {}".format(channel_mentions[0]))
-
-    async def cmd_end_survey(self, server):
-        del self.server_specific_data[server]["survey_channel"]
-        return Response("Stopped all surveys")
-
     async def handle_survey(self, user, channel, message_content):
         if await self.ask_yn(channel,
                              "Do you want your username to be visible to staff?\n"
@@ -2626,17 +2347,6 @@ class MusicBot(discord.Client):
                                              message=message,
                                              check=lambda reaction, user: check(user) and user.id != self.user.id)
         return react.reaction.emoji == "🇾"
-
-    async def cmd_unschedule(self, channel, message):
-        rtn = []
-        jobs = {job.id.split()[-1]: job for job in self.jobstore.get_all_jobs()}
-        for user in message.mentions:
-            if user.id in jobs:
-                jobs[user.id].remove()
-                rtn.append("Unscheduled {}".format(user.mention))
-            else:
-                rtn.append("{} isn't scheduled for removal".format(user.mention))
-        await self.safe_send_message(channel, "\n".join(rtn))
 
     async def on_member_join(self, member):
         embed = discord.Embed(title="Joined the server",

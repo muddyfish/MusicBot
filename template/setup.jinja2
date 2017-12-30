@@ -9,7 +9,7 @@
         </div>
         <div class="col-xs-5">
             {% if multiselect %}
-                <select class="multiselect" multiple="multiple">
+                <select class="multiselect" multiple="multiple" id="{{ name }}">
                     {% for channel in guild.channels | sort(attribute="position") %}
                         {% if channel.type.name == type %}
                             <option value="{{ channel.id }}">{{ channel.name }}</option>
@@ -17,7 +17,7 @@
                     {% endfor %}
                 </select>
             {% else %}
-                <div class="dropdown inline">
+                <div class="dropdown inline" id="{{ name }}">
                     <button class="btn btn-primary dropdown-toggle" type="button" data-toggle="dropdown">Select {{ "channels" if multiselect else "a channel"}}
                         <span class="caret"></span>
                     </button>
@@ -40,7 +40,6 @@
     <link rel="stylesheet" href="{{ base_url }}/static/css/bootstrap-multiselect.css" type="text/css"/>
 {% endblock %}
 {% block content %}
-
     {% for selection in ("report", "debug_report", "warning", "survey") %}
         {{ channel_select(selection, "text", False) }}
         <br>
@@ -51,10 +50,12 @@
         <br>
     {% endfor %}
     <hr>
-    {% for selection in ("autoconnect",) %}
+    {% for selection in ("autojoin",) %}
         {{ channel_select(selection, "voice", False) }}
         <br>
     {% endfor %}
+    <button class="btn btn-primary" type="button" onclick="submit()">Submit</button>
+    <br/>
     {{ specific_info }}
 {% endblock %}
 {% block script %}
@@ -62,6 +63,7 @@
         $(".dropdown-menu li a").click(function(){
             $(this).parents(".dropdown").find('.btn').html($(this).text() + ' <span class="caret"></span>');
             $(this).parents(".dropdown").find('.btn').val($(this).data('value'));
+            $(this).parents(".dropdown").find('.btn')[0].id = this.id;
         });
 
         $(document).ready(function() {
@@ -71,5 +73,26 @@
                 ul:'<ul class="multiselect-container dropdown-menu pre-scrollable"></ul>'
             }});
         });
+
+        function submit() {
+            serialised = {
+                report_id: $("#report").find("button")[0].id,
+                debug_report_id: $("#debug_report").find("button")[0].id,
+                warning_id: $("#warning").find("button")[0].id,
+                survey_id: $("#survey").find("button")[0].id,
+                bind_to_channels: $(".multiselect-container").find(".active").map(function() {return $(this).find("input").val()}).toArray().join(" "),
+                autoconnect_id: $("#autojoin").find("button")[0].id
+            };
+            $.ajax({
+                type: "POST",
+                dataType: 'html',
+                data: serialised,
+                success: function (data) {
+                    document.open();
+                    document.write(data);
+                    document.close();
+                }
+            });
+        }
     </script>
 {% endblock %}

@@ -1,0 +1,164 @@
+{% extends 'template.jinja2' %}
+{% macro role_permissions(name, description) %}
+    <div class="row">
+        <div class="col-xs-7 col-lg-8">
+            {{ description }}
+        </div>
+        <div class="col-xs-5 col-lg-4">
+            <div id="tab" class="btn-group btn-group-justified" data-toggle="buttons">
+                <a href="#" class="btn btn-default active" data-toggle="tab" title="Yes">
+                    <input type="radio" /><span class="glyphicon glyphicon glyphicon-ok" aria-hidden="true"></span>
+                </a>
+                <a href="#" class="btn btn-default" data-toggle="tab" title="Only if user is in the same voice channel as me">
+                    <input type="radio" /><span class="glyphicon glyphicon glyphicon-volume-up" aria-hidden="true"></span>
+                </a>
+                <a href="#" class="btn btn-default" data-toggle="tab" title="No">
+                    <input type="radio" /><span class="glyphicon glyphicon-remove" aria-hidden="true"></span>
+                </a>
+            </div>
+        </div>
+        <div class="clearfix"></div>
+        <hr>
+    </div>
+{% endmacro %}
+{% block head %}
+    <script type="text/javascript" src="{{ base_url }}/static/js/selectize.js"></script>
+    <link rel="stylesheet" href="{{ base_url }}/static/css/selectize.css" type="text/css"/>
+{% endblock %}
+{% block title %}Set permissions{% endblock %}
+{% block content %}
+    <ul class="nav nav-tabs" role="tablist">
+        <li class="active"><a id="group-1" href="#">@everyone</a></li>
+        <div id="insertion_target_group"></div>
+        <li><a id="add-group" href="#"><span class="glyphicon glyphicon-plus" aria-hidden="true"></span></a></li>
+    </ul>
+    <div class="clearfix"></div>
+    <div class="col-xs-3">
+        <ul class="nav nav-pills nav-stacked" id="role_member_chooser">
+            <li class="dropdown">
+                <a style="color: #99AAB5; background-color: #0f0f0f; padding-left: 0px; padding-right: 0px;" class="dropdown-toggle no-hover" data-toggle="dropdown" href="#">
+                    <select id="role_member_picker" class="demo-default" placeholder="Roles/Members">
+                        <option value="">Roles/Members</option>
+                    </select>
+                </a>
+            </li>
+            <div id="insertion_target_role_member"></div>
+        </ul>
+    </div>
+    <div class="col-xs-9">
+        <h2>Extended role permissions</h2>
+        <div>
+            {{ role_permissions(permissions_list.MUSIC, "Members with the permission can play music") }}
+            {{ role_permissions(permissions_list.MUSIC_ADMIN, "Members with the permission can change music related settings, such as summoning the bot, pausing and unpausing the music and forcefully skipping songs") }}
+            {{ role_permissions(permissions_list.ADMIN, "Members with the permission can use administrative actions such as warning users, cleaning messages and overseeing the removal of users with the 'Fresh' role") }}
+        </div>
+    </div>
+{% endblock %}
+
+{% block script %}
+    <script>
+        function on_add_group(event) {
+            id = $("#insertion_target_group").parent().children().length-1;
+            $("#insertion_target_group").before("<li><a id=\"group-"+id+"\" href=\"#\">New Group</a></li>");
+            $("#group-"+id).dblclick(on_group_double_click);
+            $("#group-"+id).click(on_group_click);
+            $("#add-group").blur();
+            remove_active_tab_group();
+            $("#group-"+id).parent().addClass("active");
+            picker[0].selectize.enable();
+        }
+
+        function on_group_double_click(event) {
+            text = event.target.text;
+            id = event.target.id;
+            parent = $(event.target).parent();
+            $(event.target).replaceWith("<div class=\"input-group\"><input id=\""+id+"\" type=\"text\" class=\"form-control\" value=\""+text+"\"><span class=\"input-group-btn\"><button class=\"btn btn-default\" type=\"button\"><span class=\"glyphicon glyphicon-remove-circle\" aria-hidden=\"true\"></button></span></div>");
+            input = parent.find("input");
+            input.focus();
+            input.focusout(on_group_double_click_unfocus);
+            input.keypress(function (event) {
+                if (event.which == 13) {
+                  on_group_double_click_unfocus(event);
+                }
+            });
+        }
+
+        function on_group_double_click_unfocus(event) {
+            text = event.target.value;
+            id = event.target.id;
+            parent = $(event.target).parent();
+            if (parent.find("span :hover").length) {
+                parent.remove();
+                return;
+            }
+            parent.replaceWith("<a id=\""+id+"\" href=\"#\">"+text+"</a>");
+            $("#"+id).dblclick(on_group_double_click);
+            $("#"+id).click(on_group_click);
+        }
+
+        function on_group_click(event) {
+            remove_active_tab_group();
+            $(event.target).parent().addClass("active");
+            id = event.target.id;
+            if (id === "group-1") {
+                picker[0].selectize.disable();
+            }
+            else {
+                picker[0].selectize.enable();
+            }
+            console.log(event);
+        }
+
+        function remove_active_tab_group() {
+            $("#insertion_target_group").parent().children().map(function(i, c) {$(c).removeClass("active")});
+        }
+
+        function remove_user_or_role(snowflake) {
+            $("#snowflake_"+snowflake).remove();
+        }
+
+        $(document).ready(function(){
+            $("#group-1").click(on_group_click);
+            $("#add-group").click(on_add_group);
+
+            picker = $('#role_member_picker').selectize({
+                options: [
+                    {% for role in guild.roles | sort(attribute="position", reverse=True) | selectattr("position", "greaterthan", 0) %}
+                        {type: 'role', value: "{{ role.id }}", name: "{{ role.name |e}}", colour: "{{ role.colour if role.colour.value else "#ffffff" }}"},
+                    {% endfor %}
+                    {% for member in guild.members | sort(attribute="name") %}
+                        {type: 'member', value: "{{ member.id }}", name: "{{ member.name |e}}",  colour: "#ffffff"}{{ "," if not loop.last }}
+                    {% endfor %}
+                ],
+                optgroups: [
+                    {value: 'role', label: 'Role'},
+                    {value: 'member', label: 'Member'}
+                ],
+                optgroupField: 'type',
+                labelField: 'name',
+                searchField: ['name'],
+                onItemAdd: function (value, item) {
+                    $("#insertion_target_role_member").before(item);
+                    picker[0].selectize.clear()
+                },
+                render: {
+                    option: function(data, escape) {
+                        return '<div class="option" style="color: '+data.colour+'; background-color: #23272A">' + escape(data.name)+"</div>";
+                    },
+                    optgroup_header: function(data, escape) {
+                        return '<div class="optgroup-header" style="background-color: #23272A">' + escape(data.label)+"</div>";
+                    },
+                    item: function(data, escape) {
+                        return  '<li id="snowflake_'+data.value+'">' +
+                                    '<a style="color: '+data.colour+'" onMouseOver="this.style.backgroundColor=\''+data.colour+'D0\'" onMouseOut="this.style.backgroundColor=\'#2C2F33\'" href="javascript:remove_user_or_role(\''+data.value+'\')">' +
+                                        '<span style="overflow:hidden; display: block; margin-right: 16px;">'+escape(data.name)+'</span>' +
+                                        '<span style="float: right; color: #99AAB5; position: absolute; right: 15px; padding-top: 13px;" class="glyphicon glyphicon-remove-circle" aria-hidden="true"></span>' +
+                                    '</a>' +
+                                '</li>';
+                    }
+                }
+            });
+            picker[0].selectize.disable();
+        });
+    </script>
+{% endblock %}

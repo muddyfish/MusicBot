@@ -32,20 +32,50 @@ class Server(Base):
     discord_id = Column(String)
 
     permission_groups = relationship("PermissionsGroup")
-    bind_to_channels = Column(String)
-    autojoin = Column(String)
 
     regular_id = Column(String)
     fresh_id = Column(String)
-    report_id = Column(String)
-    survey_id = Column(String)
 
-    volume = Column(Float)
+    report_id = Column(String)
+    debug_report_id = Column(String)
+    warning_id = Column(String)
+    survey_id = Column(String)
+    autoconnect_id = Column(String)
+    bind_to_channels = Column(String)
+
+    volume = Column(Integer)
     max_skips = Column(Integer)
     ratio = Column(Float)
     autoplaylist = Column(String)
 
     command_prefix = Column(String)
+
+    def setup(self, bot):
+        self.bot = bot
+
+    @property
+    def server(self):
+        return self.bot.get_server(self.server_id)
+
+    @property
+    def debug_report_channel(self):
+        return self.bot.get_channel(self.debug_report_id)
+
+    @property
+    def warning_channel(self):
+        return self.bot.get_channel(self.warning_id)
+
+    @property
+    def survey_channel(self):
+        return self.bot.get_channel(self.survey_id)
+
+    @property
+    def autoconnect_channel(self):
+        return self.bot.get_channel(self.autoconnect_id)
+
+    @property
+    def bound_channels(self):
+        return [self.bot.get_channel(channel_id) for channel_id in self.bind_to_channels.split(" ")]
 
 
 class PermissionsGroup(Base):
@@ -73,6 +103,7 @@ class User(Base):
     __tablename__ = "User"
     id = Column(Integer, primary_key=True)
     discord_id = Column(Integer)
+    refresh_token = Column(String)
     agreed = Column(Boolean)
 
     groups = relationship(PermissionsGroup,

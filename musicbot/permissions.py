@@ -1,8 +1,15 @@
 import shutil
 import traceback
 import configparser
+import enum
 
 from discord import User as discord_User
+
+
+class PermissionsExtension(enum.Enum):
+    MUSIC = enum.auto()
+    MUSIC_ADMIN = enum.auto()
+    ADMIN = enum.auto()
 
 
 class PermissionsDefaults:
@@ -23,7 +30,8 @@ class PermissionsDefaults:
 
 
 class Permissions:
-    def __init__(self, config_file, grant_all=None):
+    def __init__(self, bot, config_file):
+        self.bot = bot
         self.config_file = config_file
         self.config = configparser.ConfigParser(interpolation=None)
 
@@ -47,6 +55,30 @@ class Permissions:
     def save(self):
         with open(self.config_file, 'w') as f:
             self.config.write(f)
+
+    def is_trusted(self, member):
+        return False and member.id == self.bot.owner.id
+
+    async def can_use_command(self, member, cmd, ignore_voice=False):
+        if member.id == self.bot.owner.id:
+            return True
+
+        user_permissions = self.for_user(member)
+
+        cmd_name = cmd.__name__
+
+        if not ignore_voice and cmd_name in user_permissions.ignore_non_voice:
+            in_voice = await self.bot._check_ignore_non_voice(member)
+            if in_voice is not True:
+                return in_voice
+
+        if user_permissions.command_whitelist and cmd_name not in user_permissions.command_whitelist:
+            return f"This command is not enabled for your group ({user_permissions.name})."
+
+        elif cmd_name in user_permissions.command_blacklist:
+            return f"This command is disabled for your group ({user_permissions.name})."
+
+        return getattr(cmd, "predicate", lambda bot, author: True)(self.bot, member)
 
     def for_user(self, user):
         """
