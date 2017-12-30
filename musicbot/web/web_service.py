@@ -80,6 +80,7 @@ class WebService:
         commands = [name for name, func in request.app["bot"].get_commands().items() if not hasattr(func, "owner_only")]
         return {"commands": commands,
                 "guild": server,
+                "base_url": self.url,
                 "permissions_list": PermissionsExtension}
 
     async def render_generic_css(self, request):
