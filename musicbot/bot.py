@@ -93,7 +93,7 @@ def requires_perms(*perms):
                 return await func(self, *args, **kwargs)
             else:
                 raise exceptions.PermissionsError("Only trusted users can use this command", expire_in=30)
-        wrapper.predicate = lambda bot, author: bot.permissions.is_trusted(author)
+        wrapper.predicate = lambda bot, author: True
         return wrapper
     return decorator
 
