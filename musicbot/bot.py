@@ -77,7 +77,8 @@ class Response:
 def protected(func):
     @wraps(func)
     async def wrapper(self, *args, **kwargs):
-        if wrapper.predicate(self, _get_variable('message').author):
+        message = _get_variable('message')
+        if not message or wrapper.predicate(self, message.author):
             return await func(self, *args, **kwargs)
         else:
             raise exceptions.PermissionsError("Only trusted users can use this command", expire_in=30)
@@ -89,7 +90,8 @@ def requires_perms(*perms):
     def decorator(func):
         @wraps(func)
         async def wrapper(self, *args, **kwargs):
-            if wrapper.predicate(self, _get_variable('message').author):
+            message = _get_variable('message')
+            if not message or wrapper.predicate(self, message.author):
                 return await func(self, *args, **kwargs)
             else:
                 raise exceptions.PermissionsError("Only trusted users can use this command", expire_in=30)
