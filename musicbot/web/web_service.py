@@ -93,7 +93,8 @@ class WebService:
         update = await request.json()
         response = await self.bot.cmd_update(update)
         for server, data in self.bot.server_specific_data.items():
-            await self.bot.safe_send_message(data["report_channel_dj"],
-                                         "",
-                                         embed=response.embed)
+            if "report_channel_dj" in data:
+                await self.bot.safe_send_message(data["report_channel_dj"],
+                                             "",
+                                             embed=response.embed)
         return web.Response(text="")
