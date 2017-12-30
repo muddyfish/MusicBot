@@ -28,7 +28,7 @@
 {% block title %}Set permissions{% endblock %}
 {% block content %}
     <ul class="nav nav-tabs" role="tablist">
-        <li class="active"><a id="group-1" href="#">@everyone</a></li>
+        <li class="active no-pencil"><a id="group-1" href="#">@everyone</a></li>
         <div id="insertion_target_group"></div>
         <li><a id="add-group" href="#"><span class="glyphicon glyphicon-plus" aria-hidden="true"></span></a></li>
     </ul>
@@ -60,7 +60,6 @@
         function on_add_group(event) {
             id = $("#insertion_target_group").parent().children().length-1;
             $("#insertion_target_group").before("<li><a id=\"group-"+id+"\" href=\"#\">New Group</a></li>");
-            $("#group-"+id).dblclick(on_group_double_click);
             $("#group-"+id).click(on_group_click);
             $("#add-group").blur();
             remove_active_tab_group();
@@ -68,22 +67,22 @@
             picker[0].selectize.enable();
         }
 
-        function on_group_double_click(event) {
+        function on_group_rename_click(event) {
             text = event.target.text;
             id = event.target.id;
             parent = $(event.target).parent();
             $(event.target).replaceWith("<div class=\"input-group\"><input id=\""+id+"\" type=\"text\" class=\"form-control\" value=\""+text+"\"><span class=\"input-group-btn\"><button class=\"btn btn-default\" type=\"button\"><span class=\"glyphicon glyphicon-remove-circle\" aria-hidden=\"true\"></button></span></div>");
             input = parent.find("input");
             input.focus();
-            input.focusout(on_group_double_click_unfocus);
+            input.focusout(on_group_rename_click_unfocus);
             input.keypress(function (event) {
                 if (event.which == 13) {
-                  on_group_double_click_unfocus(event);
+                  on_group_rename_click_unfocus(event);
                 }
             });
         }
 
-        function on_group_double_click_unfocus(event) {
+        function on_group_rename_click_unfocus(event) {
             text = event.target.value;
             id = event.target.id;
             parent = $(event.target).parent();
@@ -92,11 +91,14 @@
                 return;
             }
             parent.replaceWith("<a id=\""+id+"\" href=\"#\">"+text+"</a>");
-            $("#"+id).dblclick(on_group_double_click);
             $("#"+id).click(on_group_click);
         }
 
         function on_group_click(event) {
+            if (($(event.target).parent().hasClass("active"))) {
+                on_group_rename_click(event);
+                return;
+            }
             remove_active_tab_group();
             $(event.target).parent().addClass("active");
             id = event.target.id;
@@ -106,7 +108,6 @@
             else {
                 picker[0].selectize.enable();
             }
-            console.log(event);
         }
 
         function remove_active_tab_group() {
@@ -120,6 +121,7 @@
         $(document).ready(function(){
             $("#group-1").click(on_group_click);
             $("#add-group").click(on_add_group);
+            $("#group-renamer").click(on_group_rename_click);
 
             picker = $('#role_member_picker').selectize({
                 options: [

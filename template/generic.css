@@ -50,3 +50,8 @@ body {
 .selectize-dropdown {
     background-color: #23272A !important;
 }
+
+.nav-tabs > li:not(.no-pencil).active > a:after {
+    font-family: 'Glyphicons Halflings';
+    content: " \270f";
+}
