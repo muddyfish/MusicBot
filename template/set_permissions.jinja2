@@ -67,22 +67,22 @@
             picker[0].selectize.enable();
         }
 
-        function on_group_rename_click(event) {
+        function on_group_rename(event) {
             text = event.target.text;
             id = event.target.id;
             parent = $(event.target).parent();
             $(event.target).replaceWith("<div class=\"input-group\"><input id=\""+id+"\" type=\"text\" class=\"form-control\" value=\""+text+"\"><span class=\"input-group-btn\"><button class=\"btn btn-default\" type=\"button\"><span class=\"glyphicon glyphicon-remove-circle\" aria-hidden=\"true\"></button></span></div>");
             input = parent.find("input");
             input.focus();
-            input.focusout(on_group_rename_click_unfocus);
+            input.focusout(on_group_rename_unfocus);
             input.keypress(function (event) {
                 if (event.which == 13) {
-                  on_group_rename_click_unfocus(event);
+                  on_group_rename_unfocus(event);
                 }
             });
         }
 
-        function on_group_rename_click_unfocus(event) {
+        function on_group_rename_unfocus(event) {
             text = event.target.value;
             id = event.target.id;
             parent = $(event.target).parent();
@@ -96,7 +96,7 @@
 
         function on_group_click(event) {
             if (($(event.target).parent().hasClass("active"))) {
-                on_group_rename_click(event);
+                on_group_rename(event);
                 return;
             }
             remove_active_tab_group();
@@ -121,7 +121,6 @@
         $(document).ready(function(){
             $("#group-1").click(on_group_click);
             $("#add-group").click(on_add_group);
-            $("#group-renamer").click(on_group_rename_click);
 
             picker = $('#role_member_picker').selectize({
                 options: [
