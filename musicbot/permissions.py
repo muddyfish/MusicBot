@@ -65,7 +65,7 @@ class Permissions:
 
         user_permissions = self.for_user(member)
 
-        cmd_name = cmd.__name__
+        cmd_name = cmd.__name__.replace("cmd_", "", 1)
 
         if not ignore_voice and cmd_name in user_permissions.ignore_non_voice:
             in_voice = await self.bot._check_ignore_non_voice(member)
