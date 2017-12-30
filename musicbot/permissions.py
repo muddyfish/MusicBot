@@ -57,7 +57,7 @@ class Permissions:
             self.config.write(f)
 
     def is_trusted(self, member):
-        return False and member.id == self.bot.owner.id
+        return member.id == self.bot.owner.id
 
     async def can_use_command(self, member, cmd, ignore_voice=False):
         if member.id == self.bot.owner.id:
