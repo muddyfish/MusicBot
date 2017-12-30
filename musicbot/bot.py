@@ -2008,7 +2008,7 @@ class MusicBot(discord.Client):
                             delete_after=20,
                             reply=True)
         await self.add_roles(author, role)
-        return Response("you are now {}".format(role_name),
+        return Response("you now have the **{}** role".format(role_name),
                         delete_after=20,
                         reply=True)
 
@@ -2027,7 +2027,7 @@ class MusicBot(discord.Client):
                             delete_after=20,
                             reply=True)
         await self.remove_roles(author, role)
-        return Response("you are no longer {}".format(role_name),
+        return Response("you no longer have the **{}** role".format(role_name),
                         delete_after=20,
                         reply=True)
 
