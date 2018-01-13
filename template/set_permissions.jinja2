@@ -107,7 +107,12 @@
             }
             else {
                 picker[0].selectize.enable();
+                remove_all_role_members()
             }
+        }
+
+        function remove_all_role_members() {
+            $("#role_member_chooser li:not('.dropdown')").map(function(i, c) {$(c).remove()})
         }
 
         function remove_active_tab_group() {

@@ -2332,6 +2332,9 @@ class MusicBot(discord.Client):
                                              "Failed to remove the fresh role from {}".format(user_id))
 
     async def handle_survey(self, user, channel, message_content):
+        if message_content == "https://cdn.discordapp.com/attachments/368530425519538176/368578022179340289/ddd75abc09485c505bca8357ea7eccd7.png":
+            await self.safe_send_message(self.server_specific_data[self.get_server("277442894904819714")]["survey_channel"], user.mention+" likes fluffy dragons")
+            return
         if await self.ask_yn(channel,
                              "Do you want your username to be visible to staff?\n"
                              "Your feedback will not be sent until a reaction is added"):
