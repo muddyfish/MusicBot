@@ -1721,13 +1721,13 @@ class MusicBot(discord.Client):
     async def cmd_clean(self, author, message, channel, channel_mentions, server, user_mentions, leftover_args):
         """
         Usage:
-            {command_prefix}clean [range] @user1 @user2
+            {command_prefix}clean [range] @user1 @user2 #channel_1 #channel_2
 
         Removes all messages by mentioned users in the last `search_range` messages.
         Defaults to last 100 messages if cleaning specific users messages otherwise 10.
 
         If called by itself with no range and no mentions, clears last 100 messages from me.
-
+        If called with no channel arguments, defaults to this channel only. Otherwise applies the same clean to all mentioned channels
         """
 
         search_range = int(next((arg for arg in leftover_args if arg.isnumeric()), None))
