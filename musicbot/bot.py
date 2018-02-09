@@ -1718,7 +1718,7 @@ class MusicBot(discord.Client):
         return Response(f"Removed `{entry.title.replace('`', '')}` from the queue.")
 
     @requires_perms(Perm.ADMIN)
-    async def cmd_clean(self, author, message, channel, channel_mentions, server, user_mentions, leftover_args):
+    async def cmd_purge(self, author, message, channel, channel_mentions, server, user_mentions, leftover_args):
         """
         Usage:
             {command_prefix}clean [range] @user1 @user2 #channel_1 #channel_2
