@@ -1724,7 +1724,10 @@ class MusicBot(discord.Client):
             {command_prefix}clean [range] @user1 @user2
 
         Removes all messages by mentioned users in the last `search_range` messages.
-        Defaults to all messages.
+        Defaults to last 100 messages if cleaning specific users messages otherwise 10.
+
+        If called by itself with no range and no mentions, clears last 100 messages from me.
+
         """
 
         search_range = int(next((arg for arg in leftover_args if arg.isnumeric()), None))
@@ -1733,7 +1736,7 @@ class MusicBot(discord.Client):
             user_mentions = [self.user]
 
         if search_range is None:
-            search_range = 10 if user_mentions else 100
+            search_range = 100 if user_mentions else 10
 
         await self.safe_delete_message(message, quiet=True)
 
