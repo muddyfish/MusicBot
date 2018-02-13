@@ -2063,6 +2063,14 @@ class MusicBot(discord.Client):
 
     @requires_perms(Perm.ADMIN)
     async def cmd_warn(self, server, author, message, user_mentions, leftover_args):
+        """
+        Usage:
+            {command_prefix}warn @user reason to warn user.
+
+        Sends a DM to the user stating who warned them and the reason.
+        Posts a message in the warnings channel and the channel the warning was given in.
+        Applies the muted role if exists.
+        """
         await self.delete_message(message)
         if len(user_mentions) != 1:
             return Response("You need to mention a user to warn someone", delete_after=20, reply=True)
