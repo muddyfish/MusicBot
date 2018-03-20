@@ -19,6 +19,7 @@ class PermissionsDefaults:
     CommandBlackList = set()
     IgnoreNonVoice = set()
     GrantToRoles = set()
+    GrantToServers = set()
     UserList = set()
 
     MaxSongs = 0
@@ -100,6 +101,11 @@ class Permissions:
                 if role.id in group.granted_to_roles:
                     return group
 
+        # We loop again so that we don't return a server based group before we find an assigned one
+        for group in reversed(self.groups):
+            if user.server.id in group.granted_to_servers:
+                return group
+
         return self.default_group
 
 
@@ -111,6 +117,7 @@ class PermissionGroup:
         self.command_blacklist = section_data.get('CommandBlackList', fallback=PermissionsDefaults.CommandBlackList)
         self.ignore_non_voice = section_data.get('IgnoreNonVoice', fallback=PermissionsDefaults.IgnoreNonVoice)
         self.granted_to_roles = section_data.get('GrantToRoles', fallback=PermissionsDefaults.GrantToRoles)
+        self.granted_to_servers = section_data.get('GrantToServers', fallback=PermissionsDefaults.GrantToServers)
         self.user_list = section_data.get('UserList', fallback=PermissionsDefaults.UserList)
 
         self.max_songs = section_data.get('MaxSongs', fallback=PermissionsDefaults.MaxSongs)
@@ -134,6 +141,9 @@ class PermissionGroup:
 
         if self.granted_to_roles:
             self.granted_to_roles = set(self.granted_to_roles.split())
+
+        if self.granted_to_servers:
+            self.granted_to_servers = set(self.granted_to_servers.split())
 
         if self.user_list:
             self.user_list = set(self.user_list.split())
