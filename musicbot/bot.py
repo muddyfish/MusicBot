@@ -1064,6 +1064,12 @@ class MusicBot(discord.Client):
 
     @protected
     async def cmd_create_playlist_urls(self, channel, playlist):
+        """
+        Create a playlist. Eg:
+        !create_playlist_urls name
+        url1
+        url2
+        """
         name, *urls = playlist.split("\n")
         name = slugify(name)
         write_file(os.path.join("playlists", name+".txt"), urls)
