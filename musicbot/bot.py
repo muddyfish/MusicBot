@@ -703,6 +703,7 @@ class MusicBot(discord.Client):
         awsw["warning_channel"] = self.get_channel("308242501096177664")
         awsw["survey_channel"] = self.get_channel("347369267869777920")
         self.server_specific_data[self.get_server("326474394002259969")]["report_channel"] = self.get_channel("326474544090972162")
+        self.server_specific_data[self.get_server("189209266740133888")]["report_channel_dj"] = self.get_channel("425308797033119745")
 
         print()
 
