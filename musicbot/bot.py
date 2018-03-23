@@ -1737,13 +1737,15 @@ class MusicBot(discord.Client):
         If called with no channel arguments, defaults to this channel only. Otherwise applies the same clean to all mentioned channels
         """
 
-        search_range = int(next((arg for arg in leftover_args if arg.isnumeric()), None))
-
-        if not (search_range is None or user_mentions):
-            user_mentions = [self.user]
+        search_range = next((arg for arg in leftover_args if arg.isnumeric()), None)
 
         if search_range is None:
-            search_range = 100 if user_mentions else 10
+            search_range = 100
+            if not user_mentions:
+                user_mentions = [self.user]
+                search_range = 10
+        else:
+            search_range = int(search_range)
 
         await self.safe_delete_message(message, quiet=True)
 
@@ -2125,10 +2127,11 @@ class MusicBot(discord.Client):
 
         if (message.author.id not in self.agree_list) and command != "agree":
             embed = discord.Embed(tile="Terms of Service Update",
-                                  description="This bot stores information about users in order to function.\n"
-                                    "In order to use any commands with this bot, you have to explicitly agree to this bot storing information about your Discord account.\n"
-                                    "This is in order to comply with the new terms of service for bot developers.\n"
-                                    "Type {}agree to use commands for this bot.".format(self.config.command_prefix),
+                                  description=
+                                  "This bot stores information about users in order to function.\n"
+                                  "In order to use any commands with this bot, you have to explicitly agree to this bot storing information about your Discord account.\n"
+                                  "This is in order to comply with the new terms of service for bot developers.\n"
+                                  "Type {}agree to use commands for this bot.".format(self.config.command_prefix),
                                   colour=0x3485e7)
             await self.safe_send_message(message.channel,
                                          message.author.mention,

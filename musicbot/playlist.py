@@ -91,9 +91,8 @@ class Playlist(EventEmitter):
             self.downloader.ytdl.prepare_filename(info),
             **meta
         )
-        if info.get('duration', 0) or 0 == 0:
-            await entry._download()
         self._add_entry(entry)
+        await entry._download()
         return entry, len(self.entries)
 
     async def import_from(self, playlist_url, **meta):

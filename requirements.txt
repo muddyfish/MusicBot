@@ -4,6 +4,7 @@ pip
 cffi==1.6.0; sys_platform == 'win32'
 apscheduler
 sqlalchemy
-pytaglib
+cython
+pytaglib==1.4.2
 aiofiles
 aiohttp_jinja2

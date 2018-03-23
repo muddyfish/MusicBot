@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import traceback
+import time
 
 from .exceptions import ExtractionError
 from .utils import get_header, md5sum
@@ -13,6 +14,8 @@ class BasePlaylistEntry:
         self.filename = None
         self._is_downloading = False
         self._waiting_futures = []
+        self.message = None
+        self.prev_time = 0
 
     @property
     def is_downloaded(self):
@@ -222,11 +225,13 @@ class URLPlaylistEntry(BasePlaylistEntry):
     # noinspection PyShadowingBuiltins
     async def _really_download(self, *, hash=False):
         print("[Download] Started:", self.url)
-
+        self.playlist.downloader.add_hook(self.download_hook)
         try:
             result = await self.playlist.downloader.extract_info(self.playlist.loop, self.url, download=True)
         except Exception as e:
             raise ExtractionError(e)
+        finally:
+            self.playlist.downloader.remove_hook(self.download_hook)
 
         print("[Download] Complete:", self.url)
 
@@ -247,5 +252,37 @@ class URLPlaylistEntry(BasePlaylistEntry):
                 # Move the temporary file to it's final location.
                 os.rename(unhashed_fname, self.filename)
 
+    def download_hook(self, info):
+        if info["filename"] == self.expected_filename:
+            if "channel" in self.meta:
+                bot = self.playlist.bot
+                if info["status"] == "finished":
+                    if self.message not in [None, "loading"]:
+                        asyncio.ensure_future(bot.delete_message(self.message), loop=bot.loop)
+                    return
+                if self.prev_time + 1 > time.time():
+                    return
+                self.prev_time = time.time()
+                formatted = "Downloading {title} - {downloaded}/{_total_bytes_str}, {_percent_str} ETA: {_eta_str} ({_speed_str})".format(
+                    title=self.title,
+                    downloaded=self.convert_units(info["downloaded_bytes"]),
+                    **info)
+                if self.message == "loading":
+                    pass
+                elif self.message is None:
+                    self.message = "loading"
+                    asyncio.ensure_future(bot.send_message(self.meta["channel"], formatted), loop=bot.loop).add_done_callback(self.set_message)
+                else:
+                    asyncio.ensure_future(bot.edit_message(self.message, formatted), loop=bot.loop)
 
+    @staticmethod
+    def convert_units(byte):
+        units = ("B", "KiB", "MiB")
+        for unit in units:
+            if byte < 1024:
+                return "{:.2f}{}".format(byte, unit)
+            byte /= 1024.0
+        return "{:.2f}GiB".format(byte)
 
+    def set_message(self, future):
+        self.message = future._result
