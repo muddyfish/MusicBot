@@ -263,6 +263,8 @@ class URLPlaylistEntry(BasePlaylistEntry):
                 if self.prev_time + 1 > time.time():
                     return
                 self.prev_time = time.time()
+                if "_total_bytes_str" not in info:
+                    info["_total_bytes_str"] = info["_total_bytes_estimate_str"]
                 formatted = "Downloading **{title}** - {downloaded}/{_total_bytes_str}, {_percent_str} ETA: {_eta_str} ({_speed_str})".format(
                     title=self.title,
                     downloaded=self.convert_units(info["downloaded_bytes"]),
