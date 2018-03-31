@@ -998,6 +998,14 @@ class MusicBot(discord.Client):
 
     @requires_perms(Perm.MUSIC)
     async def cmd_awsw(self, player, author, channel, song_id):
+        """
+        Usage:
+            {command_prefix}awsw <song number>
+
+        Adds the corresponding song in the AwSW soundtrack to the queue.
+        `{command_prefix}awsw 72` would add "Schizophrenia" to the queue.
+        A complete listing can be found as the first pin in <#282318692220403712>
+        """
         if not song_id.isdigit():
             return Response("Must be the soundtrack number (44 - Spring).")
         files = glob.glob("./music/AWSW/{}.*".format(song_id))
