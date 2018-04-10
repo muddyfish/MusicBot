@@ -2071,12 +2071,18 @@ class MusicBot(discord.Client):
 
     @requires_perms(Perm.ADMIN)
     async def cmd_new_users(self, server):
+        """
+        Usage:
+            {command_prefix}new_users
+
+        Gets a list of users without a role, sorted by server join date
+        """
         await self.request_offline_members(server)
         members = []
-        for member in server.members:
+        for member in sorted(server.members, key=lambda member: member.joined_at):
             if len(member.roles) == 1:
-                members.append(member.mention)
-        return Response(", ".join(members) or "There are no users without a role")
+                members.append(f"{member.mention} - {member.joined_at}")
+        return Response("\n".join(members) or "There are no users without a role")
 
     @requires_perms(Perm.ADMIN)
     async def cmd_warn(self, server, author, message, user_mentions, leftover_args):
