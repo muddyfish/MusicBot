@@ -107,7 +107,7 @@ class Downloader:
             info = obj.extract_info(*args, **new_kwargs)
             format = min((f for f in info["formats"] if "audio only" in f["format"]),
                          default={"format_id": "bestaudio/best"},
-                         key=lambda f: abs(48-f["abr"])
+                         key=lambda f: abs(196-f["abr"])
                          )["format_id"]
             obj.params["format"] = format
             info = obj.extract_info(*args, **kwargs)
