@@ -77,7 +77,7 @@ class Downloader:
         """
         if callable(on_error):
             try:
-                return await loop.run_in_executor(self.thread_pool, lambda: self.extract_info_download_check(self.unsafe_ytdl, *args, **kwargs))
+                return await loop.run_in_executor(self.thread_pool, lambda: self.unsafe_ytdl.extract_info(*args, **kwargs))
 
             except Exception as e:
 
@@ -95,22 +95,7 @@ class Downloader:
                 if retry_on_error:
                     return await self.safe_extract_info(loop, *args, **kwargs)
         else:
-            return await loop.run_in_executor(self.thread_pool, lambda: self.extract_info_download_check(self.unsafe_ytdl, *args, **kwargs))
+            return await loop.run_in_executor(self.thread_pool, lambda: self.unsafe_ytdl.extract_info(*args, **kwargs))
 
     async def safe_extract_info(self, loop, *args, **kwargs):
-        return await loop.run_in_executor(self.thread_pool, lambda: self.extract_info_download_check(self.safe_ytdl, *args, **kwargs))
-
-    def extract_info_download_check(self, obj, *args, **kwargs):
-        if kwargs.get("download", False):
-            new_kwargs = dict(kwargs)
-            new_kwargs["download"] = False
-            info = obj.extract_info(*args, **new_kwargs)
-            format = min((f for f in info["formats"] if "audio only" in f["format"]),
-                         default={"format_id": "bestaudio/best"},
-                         key=lambda f: abs(196-f["abr"])
-                         )["format_id"]
-            obj.params["format"] = format
-            info = obj.extract_info(*args, **kwargs)
-            obj.params["format"] = "bestaudio/best"
-            return info
-        return obj.extract_info(*args, **kwargs)
+        return await loop.run_in_executor(self.thread_pool, lambda: self.safe_ytdl.extract_info(*args, **kwargs))
